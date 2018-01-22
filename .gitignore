@@ -1,3 +1,4 @@
 cabal.sandbox.config
-dist/
+/dist/
 *.ibc
+/.stack-work/
