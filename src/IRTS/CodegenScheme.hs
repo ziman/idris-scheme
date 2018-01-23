@@ -216,6 +216,7 @@ cgOp (LEq _) = text "eq?"
 cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
+cgOp (LIntStr _) = text "number->string"
 cgOp (LExternal n)
     | n == sUN "prim__stdout" = ext "'stdout"
     | n == sUN "prim__stdin" = ext "'stdin"
