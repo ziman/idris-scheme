@@ -42,7 +42,7 @@ blankLine :: Doc
 blankLine = text ""
 
 schemeLauncher :: Doc
-schemeLauncher = cgApp (cgName $ sMN 0 "runMain") []
+schemeLauncher = sexp [cgName $ sMN 0 "runMain"]
 
 -- The prefix "_" makes all names "hidden".
 -- This is useful when you import the generated module from Python code.
@@ -72,16 +72,15 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
 
 cgCtor :: LDecl -> Doc
 cgCtor (LConstructor n tag arity)
-    = parens (
-        text "define"
-        <+> parens (cgName n <+> args)
-        <+> parens (text "list" <+> ctorTag <+> args)
-    )
+    = kwexp "define"
+        [ sexp (cgName n : args)
+        , sexp (text "list" : ctorTag : args)
+        ]
   where
     ctorTag
         | useCtorTags = int tag
         | otherwise   = text "'" <> cgName n
-    args = hsep [text "e" <> int i | i <- [0..arity-1]]
+    args = [text "e" <> int i | i <- [0..arity-1]]
 
 cgFun :: LDecl -> Doc
 cgFun (LFun opts n args body) = parens (
@@ -92,20 +91,23 @@ cgFun (LFun opts n args body) = parens (
 
 cgExp :: LExp -> Doc
 cgExp (LV n) = cgName n
-cgExp (LApp _tail_call f args) = parens (cgExp f <+> hsep (map cgExp args))
+cgExp (LApp _tail_call f args) = sexp (cgExp f : map cgExp args)
 cgExp (LLazyApp fn args) = cgExp (LApp False (LV fn) args)  -- TODO
-cgExp (LLazyExp e) = parens (text "lambda" <+> parens (text "") <+> cgExp e)
+cgExp (LLazyExp e) = kwexp "lambda" [parens (text ""), cgExp e]
 cgExp (LForce e) = parens (cgExp e)
-cgExp (LLet n val rhs) = parens (text "let" <+> parens (parens (cgName n <+> cgExp val)) <+> cgExp rhs)
-cgExp (LLam args rhs) = parens (text "lambda" <+> parens (hsep $ map cgName args) <+> cgExp rhs)
-cgExp (LProj e i) = parens (text "list-ref" <+> cgExp e <+> int (i+1))  -- skip the tag
-cgExp (LCon _maybe_cell tag n args) = parens (text "list" <+> int tag <+> hsep (map cgExp args))
+cgExp (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp val)), cgExp rhs]
+cgExp (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp rhs]
+cgExp (LProj e i) = kwexp "list-ref" [cgExp e, int (i+1)]  -- skip the tag
+cgExp (LCon _maybe_cell tag n args) = kwexp "list" (int tag : map cgExp args)
 cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
 cgExp (LForeign fdesc ret args) = text "'foreign" -- TODO
-cgExp (LOp op args) = parens (cgOp op <+> hsep (map cgExp args))
+cgExp (LOp op args) = sexp (cgOp op : map cgExp args)
 cgExp (LNothing) = text "'nothing"
-cgExp (LError msg) = parens (text "error" <+> cgStr msg)
+cgExp (LError msg) = cgError msg
+
+cgError :: String -> Doc
+cgError msg = kwexp "error" [cgStr msg]
 
 cgCase :: LExp -> [LAlt] -> Doc
 cgCase scrut alts = text "'case-tree"
@@ -126,9 +128,6 @@ cgConst (Fl f) = text $ show f
 cgConst (Ch c) = cgStr [c]  -- cgChar c
 cgConst (Str s) = cgStr s
 cgConst c = cgError $ "unimplemented constant: " ++ show c
-
-cgError :: String -> Doc
-cgError msg = parens (text "raise" <+> parens (text "Idris_error" <+> cgStr msg))
 
 cgStr :: String -> Doc
 cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
@@ -158,8 +157,19 @@ cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
     = text $ T.unpack n ++ show i
 cgName n = text (mangle n)
 
-cgApp :: Doc -> [Doc] -> Doc
-cgApp f args = parens (f <+> hsep args)
+sexp :: [Doc] -> Doc
+sexp [] = text "()"
+sexp [x] = parens x
+sexp xxs@(x:xs)
+    | size shortLayout <= 120 = shortLayout
+    | otherwise = longLayout
+  where
+    shortLayout = parens $ hsep xxs
+    longLayout  = parens (x $$ indent (vcat xs))
+
+kwexp :: String -> [Doc] -> Doc
+kwexp n (x : xs) = sexp (parens (text n <+> x) : xs)
+kwexp n []       = parens (text n)
 
 {- -----------------------------------------------------------------------------------------
  
