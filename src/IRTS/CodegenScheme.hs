@@ -42,7 +42,7 @@ blankLine :: Doc
 blankLine = text ""
 
 schemeLauncher :: Doc
-schemeLauncher = sexp [cgName $ sMN 0 "runMain"]
+schemeLauncher = sexp [cgName $ sMN 0 "runMain", text "'()"]
 
 -- The prefix "_" makes all names "hidden".
 -- This is useful when you import the generated module from Python code.
@@ -62,15 +62,13 @@ codegenScheme ci = writeFile (outputFile ci) (render "; " "" source)
       schemePreamble
       -- $$ vcat (map cgCtor $ M.elems ctors) $$ blankLine
       $$ blankLine
-      $$ cgBigLet [
-            (n, cgLam args $ cgExp body) 
-            | (_, LFun _opts n args body) <- decls
-        ] schemeLauncher
+      $$ definitions
+      $$ schemeLauncher
 
     -- main file
     decls = liftDecls ci
     --ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
-    definitions = vcat . reverse $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
+    definitions = vcat $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
 
 cgCtor :: LDecl -> Doc
 cgCtor (LConstructor n tag arity)
@@ -85,9 +83,25 @@ cgCtor (LConstructor n tag arity)
         | otherwise   = text "'" <> cgName n
     args = [sMN i "e" | i <- [0..arity-1]]
 
+
+-- Scheme won't bind values mutually recursively if they are not (syntactically) functions.
+-- So in curried definitions, we pull the first arg at the Scheme level.
+-- Uncurried definitions are out of luck, but that hopefully won't hurt in practice.
 cgFun :: LDecl -> Doc
-cgFun (LFun opts n args body) = parens (
+
+cgFun (LFun opts n [] body)
+    | n == sMN 0 "runMain" = parens (
+        text "define" <+> parens (cgName n <+> text "_")
+        $$ indent (cgExp body)
+    ) $$ text ""
+
+cgFun (LFun opts n [] body) = parens (
         text "define" <+> cgName n
+        $$ indent (cgExp body)
+    ) $$ text ""
+
+cgFun (LFun opts n (arg:args) body) = parens (
+        text "define" <+> parens (cgName n <+> cgName arg)
         $$ indent (cgLam args $ cgExp body)
     ) $$ text ""
 
@@ -108,9 +122,9 @@ cgExp (LCon _maybe_cell tag n args)
     = kwexp "list" (int tag : map cgExp args) <?> show n
 cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
-cgExp (LForeign fdesc ret args) = text "'foreign" -- TODO
+cgExp (LForeign fdesc ret args) = cgError "foreign not supported"
 cgExp (LOp op args) = sexp (cgOp op : map cgExp args)
-cgExp (LNothing) = text "'nothing"
+cgExp (LNothing) = text "'()"
 cgExp (LError msg) = cgError msg
 
 cgError :: String -> Doc
@@ -126,7 +140,36 @@ data LAlt' e = LConCase Int Name [Name] e
 -}
 
 cgOp :: PrimFn -> Doc
-cgOp pf = text "some-op"  -- TODO
+cgOp op = cgError $ "unsupported primop: " ++ show op
+
+{-
+data PrimFn = LPlus ArithTy | LMinus ArithTy | LTimes ArithTy
+            | LUDiv IntTy | LSDiv ArithTy | LURem IntTy | LSRem ArithTy
+            | LAnd IntTy | LOr IntTy | LXOr IntTy | LCompl IntTy
+            | LSHL IntTy | LLSHR IntTy | LASHR IntTy
+            | LEq ArithTy | LLt IntTy | LLe IntTy | LGt IntTy | LGe IntTy
+            | LSLt ArithTy | LSLe ArithTy | LSGt ArithTy | LSGe ArithTy
+            | LSExt IntTy IntTy | LZExt IntTy IntTy | LTrunc IntTy IntTy
+            | LStrConcat | LStrLt | LStrEq | LStrLen
+            | LIntFloat IntTy | LFloatInt IntTy | LIntStr IntTy | LStrInt IntTy
+            | LFloatStr | LStrFloat | LChInt IntTy | LIntCh IntTy
+            | LBitCast ArithTy ArithTy -- Only for values of equal width
+
+            | LFExp | LFLog | LFSin | LFCos | LFTan | LFASin | LFACos | LFATan
+            | LFATan2 | LFSqrt | LFFloor | LFCeil | LFNegate
+
+            | LStrHead | LStrTail | LStrCons | LStrIndex | LStrRev | LStrSubstr
+            | LReadStr | LWriteStr
+
+            | LSystemInfo
+            | LFork
+            | LPar -- evaluate argument anywhere, possibly on another
+                   -- core or another machine. 'id' is a valid implementation
+            | LExternal Name
+            | LCrash
+            | LNoOp
+-}
+
 
 cgConst :: Const -> Doc
 cgConst (I i) = text $ show i
@@ -181,7 +224,7 @@ sexp :: [Doc] -> Doc
 sexp [] = text "()"
 sexp [x] = parens x
 sexp xxs@(x:xs)
-    | size shortLayout <= 120 = shortLayout
+    | size shortLayout <= 100 = shortLayout
     | otherwise = longLayout
   where
     shortLayout = parens $ hsep xxs
