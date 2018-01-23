@@ -62,13 +62,15 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
       schemePreamble
       -- $$ vcat (map cgCtor $ M.elems ctors) $$ blankLine
       $$ blankLine
-      $$ definitions
-      $$ schemeLauncher
+      $$ cgBigLet [
+            (n, cgLam args $ cgExp body) 
+            | (_, LFun _opts n args body) <- decls
+        ] schemeLauncher
 
     -- main file
     decls = liftDecls ci
     --ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
-    definitions = vcat $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
+    definitions = vcat . reverse $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
 
 cgCtor :: LDecl -> Doc
 cgCtor (LConstructor n tag arity)
@@ -160,6 +162,19 @@ cgName :: Name -> Expr
 cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
     = text $ T.unpack n ++ show i
 cgName n = text (mangle n)
+
+cgBigLet :: [(Name, Doc)] -> Doc -> Doc
+cgBigLet defs body
+    = parens (text "letrec*"
+        <+> parens (
+                text ""
+                $$ indent (vcat [
+                    parens (cgName n $$ indent val) $$ text ""
+                    | (n, val) <- defs
+                ])
+            )
+        $$ body
+    )
 
 sexp :: [Doc] -> Doc
 sexp [] = text "()"
