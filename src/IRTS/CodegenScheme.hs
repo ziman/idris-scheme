@@ -68,7 +68,7 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
     -- main file
     decls = liftDecls ci
     ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
-    definitions = vcat $ map cgDef [d | d@(_, LFun _ _ _ _) <- decls]
+    definitions = vcat $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
 
 cgCtor :: LDecl -> Doc
 cgCtor (LConstructor n tag arity)
@@ -83,8 +83,15 @@ cgCtor (LConstructor n tag arity)
         | otherwise   = text "'" <> cgName n
     args = hsep [text "e" <> int i | i <- [0..arity-1]]
 
-cgDef :: (Name, LDecl) -> Doc
-cgDef (n, _decl) = text "definition" <+> cgName n
+cgFun :: LDecl -> Doc
+cgFun (LFun opts n args body) = parens (
+        text "define"
+        <+> parens (cgName n <+> hsep (map cgName args))
+        $$ indent (cgExp body)
+    ) $$ text ""
+
+cgExp :: LExp -> Doc
+cgExp e = text "'expression"
 
 -- Let's not mangle /that/ much. Especially function parameters
 -- like e0 and e1 are nicer when readable.
