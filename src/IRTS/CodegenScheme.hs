@@ -225,6 +225,8 @@ cgPrimOp LWriteStr [_, s] = kwexp "display" [cgExp s]
 cgPrimOp LStrHead [s] = kwexp "string-ref" [cgExp s, int 0]
 cgPrimOp LStrTail [s] = kwexp "substring" [cgExp s, int 1]
 cgPrimOp LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp c], cgExp s]
+cgPrimOp (LChInt _) [c] = text "char->integer"
+cgPrimOp (LIntCh _) [c] = text "integer->char"
 cgPrimOp op args = sexp (cgOp op : map cgExp args)
 
 cgOp :: PrimFn -> Doc
@@ -234,7 +236,7 @@ cgOp (LTimes _) = text "*"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
 cgOp (LIntStr _) = text "number->string"
-cgOp (LChInt _) = text "string->integer"
+cgOp (LStrInt _) = text "string->number"
 cgOp (LExternal n)
     | n == sUN "prim__stdout" = ext "'stdout"
     | n == sUN "prim__stdin" = ext "'stdin"
@@ -278,7 +280,7 @@ cgConst :: Const -> Doc
 cgConst (I i) = text $ show i
 cgConst (BI i) = text $ show i
 cgConst (Fl f) = text $ show f
-cgConst (Ch c) = cgStr [c]  -- cgChar c
+cgConst (Ch c) = cgChar c
 cgConst (Str s) = cgStr s
 cgConst c = cgError $ "unimplemented constant: " ++ show c
 
@@ -286,8 +288,12 @@ cgStr :: String -> Doc
 cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
 
 cgChar :: Char -> Doc
-cgChar c = text "'" <> text (scmShowChr False c) <> text "'"
+cgChar c
+    | c >= ' ' && c < '\x7F' = text ("#\\" ++ [c])
+    | otherwise = text ("#x" ++ showHex (ord c) "")
 
+-- bool flag = True: we are between double quotes
+-- bool flag = False: we are between single quotes
 scmShowChr :: Bool -> Char -> String
 scmShowChr True  '"' = "\\\""
 scmShowChr False '\'' = "\\'"
