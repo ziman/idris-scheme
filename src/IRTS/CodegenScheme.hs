@@ -7,6 +7,7 @@ import IRTS.Simplified
 import IRTS.Defunctionalise hiding (lift)
 
 import Idris.Core.TT
+import Debug.Trace
 
 import Numeric
 import Data.Maybe
@@ -89,10 +90,12 @@ cgCtor (LConstructor n tag arity)
 -- Uncurried definitions are out of luck, but that hopefully won't hurt in practice.
 cgFun :: LDecl -> Doc
 
-cgFun (LFun opts n [] body)
+cgFun (LFun opts n [] _body)
     | n == sMN 0 "runMain" = parens (
         text "define" <+> parens (cgName n <+> text "_")
-        $$ indent (cgExp body)
+        $$ indent (
+            sexp [cgName (sNS (sUN "main") ["Main"]), text "'World"]
+        )
     ) $$ text ""
 
 cgFun (LFun opts n [] body) = parens (
@@ -140,6 +143,15 @@ data LAlt' e = LConCase Int Name [Name] e
 -}
 
 cgOp :: PrimFn -> Doc
+cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
+cgOp (LExternal n)
+    | n == sUN "prim__stdout" = ext "'stdout"
+    | n == sUN "prim__stdin" = ext "'stdin"
+    | n == sUN "prim__stderr" = ext "'stderr"
+    | n == sUN "prim__sizeofPtr" = ext "1"
+    | n == sUN "prim__null" = ext "'null"
+  where
+    ext n = parens (text "lambda ()" <+> text n)
 cgOp op = cgError $ "unsupported primop: " ++ show op
 
 {-
