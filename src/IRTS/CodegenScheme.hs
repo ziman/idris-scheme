@@ -96,8 +96,10 @@ cgFun za (LFun opts n args body) = parens (
     ) $$ text ""
 
 cgLam :: [Name] -> Doc -> Doc
-cgLam [] body = body
-cgLam (n:ns) body = parens (text "lambda" <+> parens (cgName n) $$ indent (cgLam ns body))
+cgLam ns body = parens (
+    text "clambda" <+> parens (hsep $ map cgName ns)
+    $$ indent body
+  )
 
 cgApp :: Doc -> [Doc] -> Doc
 cgApp f [] = f
