@@ -12,5 +12,5 @@ pythag max = [
 
 main : IO ()
 main = do
-  printLn $ pythag 10
+  printLn $ pythag 100
   printLn $ sort ["foo", "bar", "baz"]
