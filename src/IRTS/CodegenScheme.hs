@@ -106,6 +106,7 @@ cgFun :: LDecl -> Doc
 cgFun (LFun opts n [] _body)
     | n == sMN 0 "runMain" = parens (
         text "define" <+> parens (cgName n <+> text "_")
+        $$ (text "" <?> show n)
         $$ indent (
             sexp [cgName (sNS (sUN "main") ["Main"]), text "'World"]
         )
@@ -113,11 +114,13 @@ cgFun (LFun opts n [] _body)
 
 cgFun (LFun opts n [] body) = parens (
         text "define" <+> cgName n
+        $$ (text "" <?> show n)
         $$ indent (cgExp body)
     ) $$ text ""
 
 cgFun (LFun opts n (arg:args) body) = parens (
         text "define" <+> parens (cgName n <+> cgName arg)
+        $$ (text "" <?> show n)
         $$ indent (cgLam args $ cgExp body)
     ) $$ text ""
 
@@ -180,23 +183,23 @@ cgCase scrut alts
     isADT (LDefaultCase _ : alts) = isADT alts
     isADT [] = error "cannot determine ADTness of case tree"
 
+unpackAlt :: [Name] -> Doc -> Doc
+unpackAlt [] body = body
+unpackAlt args body = kwexp "rts-unpack" [
+    text "(cdr _scrut)",
+    sexp (map cgName args),
+    body
+  ]
+
 cgAlt :: LAlt -> Doc
 cgAlt (LConCase tag n args rhs) 
     | useCtorTags = sexp
         [ kwexp "eq?" [text "_tag", int tag]
-        , kwexp "rts-unpack" [
-            text "(cdr _scrut)",
-            sexp (map cgName args),
-            cgExp rhs
-          ]
+        , unpackAlt args $ cgExp rhs
         ]
     | otherwise = sexp
         [ kwexp "eq?" [text "_tag", text "'" <> cgName n]
-        , kwexp "rts-unpack" [
-            text "(cdr _scrut)",
-            sexp (map cgName args),
-            cgExp rhs
-          ]
+        , unpackAlt args $ cgExp rhs
         ]
 cgAlt (LConstCase const rhs) = sexp
     [ kwexp "eq?" [text "_scrut", cgConst const]

@@ -7,10 +7,10 @@ pythag max = [
     | z <- [1..max]
     , y <- [1..z]
     , x <- [1..y]
-    , x * x + y *y == z * z
+    , x * x + y * y == z * z
   ]
 
 main : IO ()
 main = do
-  printLn $ pythag 100
+  printLn $ pythag 10
   printLn $ sort ["foo", "bar", "baz"]

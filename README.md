@@ -1,3 +1,3 @@
 # Scheme back-end for Idris
 
-Should be R5RS-compliant.
+Should be fairly portable.
