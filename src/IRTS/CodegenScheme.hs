@@ -56,7 +56,7 @@ mangle n = "idr_" ++ concatMap mangleChar (showCG n)
 -- We could generate from:
 -- simpleDecls / defunDecls / liftDecls
 codegenScheme :: CodeGenerator
-codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
+codegenScheme ci = writeFile (outputFile ci) (render "; " "" source)
   where
     source =
       schemePreamble
@@ -104,7 +104,8 @@ cgExp (LForce e) = parens (cgExp e)
 cgExp (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp val)), cgExp rhs]
 cgExp (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp rhs]
 cgExp (LProj e i) = kwexp "list-ref" [cgExp e, int (i+1)]  -- skip the tag
-cgExp (LCon _maybe_cell tag n args) = kwexp "list" (int tag : map cgExp args)
+cgExp (LCon _maybe_cell tag n args)
+    = kwexp "list" (int tag : map cgExp args) <?> show n
 cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
 cgExp (LForeign fdesc ret args) = text "'foreign" -- TODO
