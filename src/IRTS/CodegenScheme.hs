@@ -28,7 +28,7 @@ import Util.PrettyPrint
 type Expr = Doc
 
 useCtorTags :: Bool
-useCtorTags = True  -- otherwise, use ctor names
+useCtorTags = False  -- otherwise, use ctor names
 
 indent :: Doc -> Doc
 indent = nest 2
@@ -126,7 +126,8 @@ cgExp (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp val)), 
 cgExp (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp rhs]
 cgExp (LProj e i) = kwexp "list-ref" [cgExp e, int (i+1)]  -- skip the tag
 cgExp (LCon _maybe_cell tag n args)
-    = kwexp "list" (int tag : map cgExp args) <?> show n
+    | useCtorTags = kwexp "list" (int tag : map cgExp args) <?> show n
+    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map cgExp args) <?> show n
 cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
 cgExp (LForeign fdesc ret args) = cgError "foreign not supported"
@@ -167,10 +168,15 @@ cgCase scrut alts
     isADT [] = error "cannot determine ADTness of case tree"
 
 cgAlt :: LAlt -> Doc
-cgAlt (LConCase tag _n args rhs) = sexp
-    [ kwexp "eq?" [text "_tag", int tag]
-    , cgExp rhs  -- TODO
-    ]
+cgAlt (LConCase tag n args rhs) 
+    | useCtorTags = sexp
+        [ kwexp "eq?" [text "_tag", int tag]
+        , cgExp rhs  -- TODO
+        ]
+    | otherwise = sexp
+        [ kwexp "eq?" [text "_tag", text "'" <> cgName n]
+        , cgExp rhs  -- TODO
+        ]
 cgAlt (LConstCase const rhs) = sexp
     [ kwexp "eq?" [text "_scrut", cgConst const]
     , cgExp rhs
