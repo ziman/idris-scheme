@@ -138,15 +138,50 @@ cgError :: String -> Doc
 cgError msg = kwexp "error" [cgStr msg]
 
 cgCase :: LExp -> [LAlt] -> Doc
-cgCase scrut alts = text "'case-tree"
+cgCase scrut alts
+    | isADT alts
+        = kwexp "let" [
+            sexp [
+              sexp [text "_scrut", cgExp scrut],
+              sexp [text "_tag", kwexp "car" [text "_scrut"]]
+            ],
+            sexp (
+              text "cond"
+              : map cgAlt alts
+            )
+        ]
+    | otherwise
+        = kwexp "let" [
+            sexp [
+              sexp [text "_scrut", cgExp scrut]
+            ],
+            sexp (
+              text "cond"
+              : map cgAlt alts
+            )
+        ]
+  where
+    isADT (LConCase _ _ _ _ : _) = True
+    isADT (LConstCase _ _ : _) = False
+    isADT (LDefaultCase _ : alts) = isADT alts
+    isADT [] = error "cannot determine ADTness of case tree"
 
-{-
-data LAlt' e = LConCase Int Name [Name] e
-             | LConstCase Const e
-             | LDefaultCase e
--}
+cgAlt :: LAlt -> Doc
+cgAlt (LConCase tag _n args rhs) = sexp
+    [ kwexp "eq?" [text "_tag", int tag]
+    , cgExp rhs  -- TODO
+    ]
+cgAlt (LConstCase const rhs) = sexp
+    [ kwexp "eq?" [text "_scrut", cgConst const]
+    , cgExp rhs
+    ]
+cgAlt (LDefaultCase rhs) = sexp
+    [ text "else"
+    , cgExp rhs
+    ]
 
 cgOp :: PrimFn -> Doc
+cgOp (LEq _) = text "eq?"
 cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
