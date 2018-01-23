@@ -43,7 +43,7 @@ blankLine :: Doc
 blankLine = text ""
 
 schemeLauncher :: Doc
-schemeLauncher = sexp [cgName $ sMN 0 "runMain", text "'()"]
+schemeLauncher = sexp [cgName $ sMN 0 "runMain", text "'main-token"]
 
 -- The prefix "_" makes all names "hidden".
 -- This is useful when you import the generated module from Python code.
@@ -112,12 +112,16 @@ cgLam :: [Name] -> Doc -> Doc
 cgLam [] body = body
 cgLam (n:ns) body = parens (text "lambda" <+> parens (cgName n) $$ indent (cgLam ns body))
 
+cgApp :: Doc -> [Doc] -> Doc
+cgApp f [] = f
+cgApp f (x:xs) = cgApp (sexp [f, x]) xs
+
 cgExp :: LExp -> Doc
 cgExp (LV n) = cgName n
-cgExp (LApp _tail_call f args) = sexp (cgExp f : map cgExp args)
-cgExp (LLazyApp fn args) = cgExp (LApp False (LV fn) args)  -- TODO
-cgExp (LLazyExp e) = kwexp "lambda" [parens (text ""), cgExp e]
-cgExp (LForce e) = parens (cgExp e)
+cgExp (LApp _tail_call f args) = cgApp (cgExp f) (map cgExp args)
+cgExp (LLazyApp fn args) = cgError $ "lazy app: " ++ show (fn, args)
+cgExp (LLazyExp e) = kwexp "lambda" [parens (text "_force"), cgExp e]
+cgExp (LForce e) = sexp [cgExp e, text "'force"]
 cgExp (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp val)), cgExp rhs]
 cgExp (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp rhs]
 cgExp (LProj e i) = kwexp "list-ref" [cgExp e, int (i+1)]  -- skip the tag
@@ -127,7 +131,7 @@ cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
 cgExp (LForeign fdesc ret args) = cgError "foreign not supported"
 cgExp (LOp op args) = sexp (cgOp op : map cgExp args)
-cgExp (LNothing) = text "'()"
+cgExp (LNothing) = text "'nothing"
 cgExp (LError msg) = cgError msg
 
 cgError :: String -> Doc
@@ -144,6 +148,8 @@ data LAlt' e = LConCase Int Name [Name] e
 
 cgOp :: PrimFn -> Doc
 cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
+cgOp LStrConcat = text "string-append"
+cgOp LStrCons = text "string-append"
 cgOp (LExternal n)
     | n == sUN "prim__stdout" = ext "'stdout"
     | n == sUN "prim__stdin" = ext "'stdin"
