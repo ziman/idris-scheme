@@ -140,7 +140,7 @@ cgError msg = kwexp "error" [cgStr msg]
 cgCase :: LExp -> [LAlt] -> Doc
 cgCase scrut alts
     | isADT alts
-        = kwexp "let" [
+        = kwexp "let*" [
             sexp [
               sexp [text "_scrut", cgExp scrut],
               sexp [text "_tag", kwexp "car" [text "_scrut"]]
@@ -181,6 +181,10 @@ cgAlt (LDefaultCase rhs) = sexp
     ]
 
 cgOp :: PrimFn -> Doc
+cgOp (LSExt _ _) = text "(lambda (x) x)"  -- scheme ints are arbitrary precision
+cgOp (LMinus _) = text "-"
+cgOp (LPlus _) = text "+"
+cgOp (LTimes _) = text "*"
 cgOp (LEq _) = text "eq?"
 cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
 cgOp LStrConcat = text "string-append"
