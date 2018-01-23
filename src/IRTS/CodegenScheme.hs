@@ -47,7 +47,7 @@ schemeLauncher = cgApp (cgName $ sMN 0 "runMain") []
 -- The prefix "_" makes all names "hidden".
 -- This is useful when you import the generated module from Python code.
 mangle :: Name -> String
-mangle n = "_idr_" ++ concatMap mangleChar (showCG n)
+mangle n = "idr_" ++ concatMap mangleChar (showCG n)
   where
     mangleChar x
         | isAlpha x || isDigit x = [x]
@@ -91,14 +91,72 @@ cgFun (LFun opts n args body) = parens (
     ) $$ text ""
 
 cgExp :: LExp -> Doc
-cgExp e = text "'expression"
+cgExp (LV n) = cgName n
+cgExp (LApp _tail_call f args) = parens (cgExp f <+> hsep (map cgExp args))
+cgExp (LLazyApp fn args) = cgExp (LApp False (LV fn) args)  -- TODO
+cgExp (LLazyExp e) = parens (text "lambda" <+> parens (text "") <+> cgExp e)
+cgExp (LForce e) = parens (cgExp e)
+cgExp (LLet n val rhs) = parens (text "let" <+> parens (parens (cgName n <+> cgExp val)) <+> cgExp rhs)
+cgExp (LLam args rhs) = parens (text "lambda" <+> parens (hsep $ map cgName args) <+> cgExp rhs)
+cgExp (LProj e i) = parens (text "list-ref" <+> cgExp e <+> int (i+1))  -- skip the tag
+cgExp (LCon _maybe_cell tag n args) = parens (text "list" <+> int tag <+> hsep (map cgExp args))
+cgExp (LCase _caseType scrut alts) = cgCase scrut alts
+cgExp (LConst x) = cgConst x
+cgExp (LForeign fdesc ret args) = text "'foreign" -- TODO
+cgExp (LOp op args) = parens (cgOp op <+> hsep (map cgExp args))
+cgExp (LNothing) = text "'nothing"
+cgExp (LError msg) = parens (text "error" <+> cgStr msg)
+
+cgCase :: LExp -> [LAlt] -> Doc
+cgCase scrut alts = text "'case-tree"
+
+{-
+data LAlt' e = LConCase Int Name [Name] e
+             | LConstCase Const e
+             | LDefaultCase e
+-}
+
+cgOp :: PrimFn -> Doc
+cgOp pf = text "some-op"  -- TODO
+
+cgConst :: Const -> Doc
+cgConst (I i) = text $ show i
+cgConst (BI i) = text $ show i
+cgConst (Fl f) = text $ show f
+cgConst (Ch c) = cgStr [c]  -- cgChar c
+cgConst (Str s) = cgStr s
+cgConst c = cgError $ "unimplemented constant: " ++ show c
+
+cgError :: String -> Doc
+cgError msg = parens (text "raise" <+> parens (text "Idris_error" <+> cgStr msg))
+
+cgStr :: String -> Doc
+cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
+
+cgChar :: Char -> Doc
+cgChar c = text "'" <> text (scmShowChr False c) <> text "'"
+
+scmShowChr :: Bool -> Char -> String
+scmShowChr True  '"' = "\\\""
+scmShowChr False '\'' = "\\'"
+scmShowChr isStr '\\' = "\\\\"
+scmShowChr isStr c
+    | c >= ' ' && c < '\x7F'  = [c]
+    | c <= '\xFF' = "\\x" ++ showHexN 2 (ord c)
+    | otherwise = error $ "char > 255: " ++ show c
+
+showHexN :: Int -> Int -> String
+showHexN 0 _ = ""
+showHexN w n =
+  let (p,q) = n `divMod` 16
+    in showHexN (w-1) p ++ showHex q ""
 
 -- Let's not mangle /that/ much. Especially function parameters
 -- like e0 and e1 are nicer when readable.
 cgName :: Name -> Expr
 cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
     = text $ T.unpack n ++ show i
-cgName n = text (mangle n)  -- <?> show n  -- uncomment this to get a comment for *every* mangled name
+cgName n = text (mangle n)
 
 cgApp :: Doc -> [Doc] -> Doc
 cgApp f args = parens (f <+> hsep args)
@@ -206,16 +264,16 @@ cgError :: String -> Doc
 cgError msg = parens (text "raise" <+> parens (text "Idris_error" <+> cgStr msg))
 
 cgStr :: String -> Doc
-cgStr s = text "\"" <> text (concatMap (mlShowChr True) s) <> text "\""
+cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
 
 cgChar :: Char -> Doc
-cgChar c = text "'" <> text (mlShowChr False c) <> text "'"
+cgChar c = text "'" <> text (scmShowChr False c) <> text "'"
 
-mlShowChr :: Bool -> Char -> String
-mlShowChr True  '"' = "\\\""
-mlShowChr False '\'' = "\\'"
-mlShowChr isStr '\\' = "\\\\"
-mlShowChr isStr c
+scmShowChr :: Bool -> Char -> String
+scmShowChr True  '"' = "\\\""
+scmShowChr False '\'' = "\\'"
+scmShowChr isStr '\\' = "\\\\"
+scmShowChr isStr c
     | c >= ' ' && c < '\x7F'  = [c]
     | c <= '\xFF' = "\\x" ++ showHexN 2 (ord c)
     | otherwise = error $ "char > 255: " ++ show c
