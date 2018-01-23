@@ -216,11 +216,15 @@ boolOp op args = kwexp "if" [kwexp op (map cgExp args), int 1, int 0]
 -- some primops are implemented here for efficiency
 cgPrimOp :: PrimFn -> [LExp] -> Doc
 cgPrimOp (LSExt _ _) [x] = cgExp x  -- scheme ints are arbitrary precision
-cgPrimOp (LEq _) args = boolOp "eq?" args
+cgPrimOp (LEq _) args = boolOp "=" args
 cgPrimOp (LSLt _) args = boolOp "<" args
 cgPrimOp (LSGt _) args = boolOp "<" args
-cgPrimOp LStrEq args = boolOp "eq?" args
+cgPrimOp LStrEq args = boolOp "string=?" args
+cgPrimOp LStrLt args = boolOp "string<?" args
 cgPrimOp LWriteStr [_, s] = kwexp "display" [cgExp s]
+cgPrimOp LStrHead [s] = kwexp "string-ref" [cgExp s, int 0]
+cgPrimOp LStrTail [s] = kwexp "substring" [cgExp s, int 1]
+cgPrimOp LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp c], cgExp s]
 cgPrimOp op args = sexp (cgOp op : map cgExp args)
 
 cgOp :: PrimFn -> Doc
@@ -230,6 +234,7 @@ cgOp (LTimes _) = text "*"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
 cgOp (LIntStr _) = text "number->string"
+cgOp (LChInt _) = text "string->integer"
 cgOp (LExternal n)
     | n == sUN "prim__stdout" = ext "'stdout"
     | n == sUN "prim__stdin" = ext "'stdin"
