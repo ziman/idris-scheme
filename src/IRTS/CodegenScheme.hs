@@ -144,7 +144,7 @@ cgExp (LCon _maybe_cell tag n args)
 cgExp (LCase _caseType scrut alts) = cgCase scrut alts
 cgExp (LConst x) = cgConst x
 cgExp (LForeign fdesc ret args) = cgError "foreign not supported"
-cgExp (LOp op args) = sexp (cgOp op : map cgExp args)
+cgExp (LOp op args) = cgPrimOp op args
 cgExp (LNothing) = text "'nothing"
 cgExp (LError msg) = cgError msg
 
@@ -207,13 +207,18 @@ cgAlt (LDefaultCase rhs) = sexp
     , cgExp rhs
     ]
 
+-- some primops are implemented here for efficiency
+cgPrimOp :: PrimFn -> [LExp] -> Doc
+cgPrimOp (LSExt _ _) [x] = cgExp x  -- scheme ints are arbitrary precision
+cgPrimOp LWriteStr [_, s] = kwexp "display" [cgExp s]
+cgPrimOp op args = sexp (cgOp op : map cgExp args)
+
 cgOp :: PrimFn -> Doc
-cgOp (LSExt _ _) = text "(lambda (x) x)"  -- scheme ints are arbitrary precision
 cgOp (LMinus _) = text "-"
 cgOp (LPlus _) = text "+"
 cgOp (LTimes _) = text "*"
 cgOp (LEq _) = text "eq?"
-cgOp LWriteStr = text "(lambda (_ s) (display s) _)"
+cgOp LStrEq = text "eq?"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
 cgOp (LIntStr _) = text "number->string"
