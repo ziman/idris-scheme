@@ -60,14 +60,14 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
   where
     source =
       schemePreamble
-      $$ vcat (map cgCtor $ M.elems ctors) $$ blankLine
+      -- $$ vcat (map cgCtor $ M.elems ctors) $$ blankLine
       $$ blankLine
       $$ definitions
       $$ schemeLauncher
 
     -- main file
     decls = liftDecls ci
-    ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
+    --ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
     definitions = vcat $ map cgFun [d | (_, d@(LFun _ _ _ _)) <- decls]
 
 cgCtor :: LDecl -> Doc
@@ -85,14 +85,13 @@ cgCtor (LConstructor n tag arity)
 
 cgFun :: LDecl -> Doc
 cgFun (LFun opts n args body) = parens (
-        text "define"
-        <+> parens (cgName n <+> hsep (map cgName args))
-        $$ indent (cgExp body)
+        text "define" <+> cgName n
+        $$ indent (cgLam args $ cgExp body)
     ) $$ text ""
 
 cgLam :: [Name] -> Doc -> Doc
 cgLam [] body = body
-cgLam (n:ns) body = kwexp "lambda" [parens (cgName n), cgLam ns body]
+cgLam (n:ns) body = parens (text "lambda" <+> parens (cgName n) $$ indent (cgLam ns body))
 
 cgExp :: LExp -> Doc
 cgExp (LV n) = cgName n
