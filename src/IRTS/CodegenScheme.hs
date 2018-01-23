@@ -26,6 +26,9 @@ import Util.PrettyPrint
 
 type Expr = Doc
 
+useCtorTags :: Bool
+useCtorTags = True  -- otherwise, use ctor names
+
 indent :: Doc -> Doc
 indent = nest 2
 
@@ -57,7 +60,7 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
   where
     source =
       schemePreamble
-      $$ cgCtors (M.elems ctors) $$ blankLine
+      $$ vcat (map cgCtor $ M.elems ctors) $$ blankLine
       $$ blankLine
       $$ definitions
       $$ schemeLauncher
@@ -65,8 +68,36 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
     -- main file
     decls = liftDecls ci
     ctors = M.fromList [(n, d) | (n, d@(LConstructor n' tag arity)) <- decls]
-    definitions = vcat $ map (cgDef ctors) [d | d@(_, LFun _ _ _ _) <- decls]
+    definitions = vcat $ map cgDef [d | d@(_, LFun _ _ _ _) <- decls]
 
+cgCtor :: LDecl -> Doc
+cgCtor (LConstructor n tag arity)
+    = parens (
+        text "define"
+        <+> parens (cgName n <+> args)
+        <+> parens (text "list" <+> ctorTag <+> args)
+    )
+  where
+    ctorTag
+        | useCtorTags = int tag
+        | otherwise   = text "'" <> cgName n
+    args = hsep [text "e" <> int i | i <- [0..arity-1]]
+
+cgDef :: (Name, LDecl) -> Doc
+cgDef (n, _decl) = text "definition" <+> cgName n
+
+-- Let's not mangle /that/ much. Especially function parameters
+-- like e0 and e1 are nicer when readable.
+cgName :: Name -> Expr
+cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
+    = text $ T.unpack n ++ show i
+cgName n = text (mangle n)  -- <?> show n  -- uncomment this to get a comment for *every* mangled name
+
+cgApp :: Doc -> [Doc] -> Doc
+cgApp f args = parens (f <+> hsep args)
+
+{- -----------------------------------------------------------------------------------------
+ 
 cgCtors :: [LDecl] -> Doc
 cgCtors cs =
   text "type value ="
@@ -81,13 +112,6 @@ cgCtor (LConstructor n _tag arity) =
   text "|" <+> text "C" <> cgName n
   <+> text "of"
   <+> hsep (punctuate (text " *") (replicate arity $ text "value"))
-
--- Let's not mangle /that/ much. Especially function parameters
--- like e0 and e1 are nicer when readable.
-cgName :: Name -> Expr
-cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
-    = text $ T.unpack n ++ show i
-cgName n = text (mangle n)  -- <?> show n  -- uncomment this to get a comment for *every* mangled name
 
 cgN :: M.Map Name LDecl -> Name -> Expr
 cgN cs n
@@ -195,8 +219,6 @@ showHexN w n =
   let (p,q) = n `divMod` 16
     in showHexN (w-1) p ++ showHex q ""
 
-{- -----------------------------------------------------------------------------------------
- 
 cgExport :: ExportIFace -> [Doc]
 cgExport (Export _ffiName _fileName es) = map cgExportDecl es
 
