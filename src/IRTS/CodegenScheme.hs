@@ -216,17 +216,18 @@ boolOp op args = kwexp "if" [kwexp op (map cgExp args), int 1, int 0]
 -- some primops are implemented here for efficiency
 cgPrimOp :: PrimFn -> [LExp] -> Doc
 cgPrimOp (LSExt _ _) [x] = cgExp x  -- scheme ints are arbitrary precision
+cgPrimOp (LEq (ATInt ITChar)) args = boolOp "char=?" args  -- chars can't be compared using (=) in Scheme
 cgPrimOp (LEq _) args = boolOp "=" args
+cgPrimOp (LSLt (ATInt ITChar)) args = boolOp "char<?" args
 cgPrimOp (LSLt _) args = boolOp "<" args
-cgPrimOp (LSGt _) args = boolOp "<" args
+cgPrimOp (LSGt (ATInt ITChar)) args = boolOp "char>?" args
+cgPrimOp (LSGt _) args = boolOp ">" args
 cgPrimOp LStrEq args = boolOp "string=?" args
 cgPrimOp LStrLt args = boolOp "string<?" args
 cgPrimOp LWriteStr [_, s] = kwexp "display" [cgExp s]
 cgPrimOp LStrHead [s] = kwexp "string-ref" [cgExp s, int 0]
 cgPrimOp LStrTail [s] = kwexp "substring" [cgExp s, int 1]
 cgPrimOp LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp c], cgExp s]
-cgPrimOp (LChInt _) [c] = text "char->integer"
-cgPrimOp (LIntCh _) [c] = text "integer->char"
 cgPrimOp op args = sexp (cgOp op : map cgExp args)
 
 cgOp :: PrimFn -> Doc
@@ -237,6 +238,8 @@ cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
 cgOp (LIntStr _) = text "number->string"
 cgOp (LStrInt _) = text "string->number"
+cgOp (LChInt _) = text "char->integer"
+cgOp (LIntCh _) = text "integer->char"
 cgOp (LExternal n)
     | n == sUN "prim__stdout" = ext "'stdout"
     | n == sUN "prim__stdin" = ext "'stdin"
@@ -290,7 +293,7 @@ cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
 cgChar :: Char -> Doc
 cgChar c
     | c >= ' ' && c < '\x7F' = text ("#\\" ++ [c])
-    | otherwise = text ("#x" ++ showHex (ord c) "")
+    | otherwise = text ("#\\x" ++ showHex (ord c) "")
 
 -- bool flag = True: we are between double quotes
 -- bool flag = False: we are between single quotes
