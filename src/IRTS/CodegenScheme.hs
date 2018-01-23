@@ -72,15 +72,16 @@ codegenScheme ci = writeFile (outputFile ci) (render ";" "" source)
 
 cgCtor :: LDecl -> Doc
 cgCtor (LConstructor n tag arity)
-    = kwexp "define"
-        [ sexp (cgName n : args)
-        , sexp (text "list" : ctorTag : args)
-        ]
+    = parens (
+        text "define" <+> cgName n
+        $$ indent (cgLam args $ sexp (text "list" : ctorTag : map cgName args))
+    )
+    $$ text ""
   where
     ctorTag
         | useCtorTags = int tag
         | otherwise   = text "'" <> cgName n
-    args = [text "e" <> int i | i <- [0..arity-1]]
+    args = [sMN i "e" | i <- [0..arity-1]]
 
 cgFun :: LDecl -> Doc
 cgFun (LFun opts n args body) = parens (
@@ -88,6 +89,10 @@ cgFun (LFun opts n args body) = parens (
         <+> parens (cgName n <+> hsep (map cgName args))
         $$ indent (cgExp body)
     ) $$ text ""
+
+cgLam :: [Name] -> Doc -> Doc
+cgLam [] body = body
+cgLam (n:ns) body = kwexp "lambda" [parens (cgName n), cgLam ns body]
 
 cgExp :: LExp -> Doc
 cgExp (LV n) = cgName n
@@ -168,7 +173,7 @@ sexp xxs@(x:xs)
     longLayout  = parens (x $$ indent (vcat xs))
 
 kwexp :: String -> [Doc] -> Doc
-kwexp n (x : xs) = sexp (parens (text n <+> x) : xs)
+kwexp n (x : xs) = sexp (text n <+> x : xs)
 kwexp n []       = parens (text n)
 
 {- -----------------------------------------------------------------------------------------
