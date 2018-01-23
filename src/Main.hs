@@ -4,9 +4,13 @@ import Idris.Core.TT
 import Idris.AbsSyntax
 import Idris.ElabDecls
 import Idris.REPL
+import Idris.Options
+import Idris.Main
 
+import IRTS.CodegenCommon
 import IRTS.Compiler
-import IRTS.CodegenScheme
+
+import IRTS.CodegenScheme (codegenScheme)
 
 import System.Environment
 import System.Exit
@@ -21,7 +25,7 @@ showUsage = do putStrLn "Usage: idris-scheme <ibc-files> [-o <output-file>]"
 
 getOpts :: IO Opts
 getOpts = do xs <- getArgs
-             return $ process (Opts [] "a.ml") xs
+             return $ process (Opts [] "a.scm") xs
   where
     process opts ("-o":o:xs) = process (opts { output = o }) xs
     process opts ("--yes-really":xs) = process opts xs -- TODO
@@ -32,7 +36,7 @@ c_main :: Opts -> Idris ()
 c_main opts = do elabPrims
                  loadInputs (inputs opts) Nothing
                  mainProg <- elabMain
-                 ir <- compile (Via "scheme") (output opts) (Just mainProg)
+                 ir <- compile (Via IBCFormat "scheme") (output opts) (Just mainProg)
                  runIO $ codegenScheme ir
 
 main :: IO ()

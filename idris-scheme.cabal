@@ -21,7 +21,7 @@ Executable idris-codegen-scheme
                 , transformers
                 , text
 
-  other-modules: IRTS.CodegenScheme
+  other-modules: IRTS.CodegenScheme, Util.PrettyPrint
 
   if os(linux)
      cpp-options:   -DLINUX
