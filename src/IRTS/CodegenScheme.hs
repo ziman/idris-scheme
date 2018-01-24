@@ -196,6 +196,16 @@ cgAlt za (LDefaultCase rhs) = sexp
     ]
 
 cgForeign :: S.Set Name -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
+
+cgForeign za _ (FStr "idris_newRef") [(_, x)]
+    = kwexp "list" [cgExp za x]
+
+cgForeign za _ (FStr "idris_readRef") [(_, ref)]
+    = kwexp "car" [cgExp za ref]
+
+cgForeign za _ (FStr "idris_writeRef") [(_, ref), (_, x)]
+    = kwexp "set-car!" [cgExp za ref, cgExp za x]
+
 cgForeign za fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
 
 boolOp :: S.Set Name -> String -> [LExp] -> Doc
