@@ -133,7 +133,10 @@ cgError :: String -> Doc
 cgError msg = kwexp "error" [cgStr msg]
 
 cgError' :: String -> [Doc] -> Doc
-cgError' msg vals = kwexp "error" [kwexp "list" (cgStr msg : vals)]
+cgError' msg vals = kwexp "error" [cgStr msg, cgList vals]
+
+cgList :: [Doc] -> Doc
+cgList = kwexp "list"
 
 cgCase :: S.Set Name -> LExp -> [LAlt] -> Doc
 cgCase za scrut alts
@@ -218,6 +221,21 @@ cFFI "idris_getArg" [i] = kwexp "list-ref"
     ]
 
 -- file I/O
+cFFI "fileOpen" [fname, mode]
+    = kwexp "cond"
+        [ sexp
+            [ kwexp "eq?" [mode, cgStr "r"]
+            , kwexp "open-input-file" [fname]
+            ]
+        , sexp
+            [ kwexp "eq?" [mode, cgStr "w"]
+            , kwexp "open-output-file" [fname]
+            ]
+        , sexp
+            [ text "else"
+            , cgError' "unsupported open mode" [fname, mode]
+            ]
+        ]
 
 cFFI fn args = cgError' ("unsupported C FFI: " ++ fn) args
 
