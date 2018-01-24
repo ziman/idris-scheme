@@ -28,6 +28,11 @@ import Util.PrettyPrint
 
 type Expr = Doc
 
+data Ctx = Ctx
+    { zeroArgFuns :: S.Set Name
+    }
+    deriving Show
+
 useCtorTags :: Bool
 useCtorTags = False  -- otherwise, use ctor names
 
@@ -79,22 +84,24 @@ codegenScheme ci = writeFile (outputFile ci) (render "; " "" source)
       $$ schemeLauncher
 
     decls = liftDecls ci
-    definitions = vcat $ map (cgFun zeroArgs) [d | (_, d@(LFun _ _ _ _)) <- decls]
-    zeroArgs = S.fromList [n | (n, LFun _ _ [] _) <- decls]
+    definitions = vcat $ map (cgFun ctx) [d | (_, d@(LFun _ _ _ _)) <- decls]
+    ctx = Ctx
+        { zeroArgFuns = S.fromList [n | (n, LFun _ _ [] _) <- decls]
+        }
 
-cgFun :: S.Set Name -> LDecl -> Doc
+cgFun :: Ctx -> LDecl -> Doc
 
 -- we must put zero-arg functions under at least one lambda
-cgFun za (LFun opts n [] body) = parens (
+cgFun ctx (LFun opts n [] body) = parens (
         text "define" <+> parens (cgName n)
         $$ (text "" <?> show n)
-        $$ indent (cgExp za body)
+        $$ indent (cgExp ctx body)
     ) $$ text ""
 
-cgFun za (LFun opts n args body) = parens (
+cgFun ctx (LFun opts n args body) = parens (
         text "define" <+> cgName n
         $$ (text "" <?> show n)
-        $$ indent (cgLam args $ cgExp za body)
+        $$ indent (cgLam args $ cgExp ctx body)
     ) $$ text ""
 
 cgLam :: [Name] -> Doc -> Doc
@@ -107,27 +114,30 @@ cgApp :: Doc -> [Doc] -> Doc
 cgApp f [] = f
 cgApp f (x:xs) = cgApp (sexp [f, x]) xs
 
--- za = zero-arg functions
-cgExp :: S.Set Name -> LExp -> Doc
-cgExp zeroArgFuns (LV n)
-    | n `S.member` zeroArgFuns = parens (cgName n)
-    | otherwise = cgName n
-cgExp za (LApp _tail_call f args) = cgApp (cgExp za f) (map (cgExp za) args)
-cgExp za (LLazyApp fn args) = cgError $ "lazy app: " ++ show (fn, args)
-cgExp za (LLazyExp e) = kwexp "lambda" [parens (text "_force"), cgExp za e]
-cgExp za (LForce e) = sexp [cgExp za e, text "'force"]
-cgExp za (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp za val)), cgExp za rhs]
-cgExp za (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp za rhs]
-cgExp za (LProj e i) = kwexp "list-ref" [cgExp za e, int (i+1)]  -- skip the tag
-cgExp za (LCon _maybe_cell tag n args)
-    | useCtorTags = kwexp "list" (int tag : map (cgExp za) args) <?> show n
-    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp za) args) <?> show n
-cgExp za (LCase _caseType scrut alts) = cgCase za scrut alts
-cgExp za (LConst x) = cgConst x
-cgExp za (LForeign fdesc ret args) = cgForeign za fdesc ret args
-cgExp za (LOp op args) = cgPrimOp za op args
-cgExp za (LNothing) = text "'nothing"
-cgExp za (LError msg) = cgError msg
+-- ctx = zero-arg functions
+cgExp :: Ctx -> LExp -> Doc
+cgExp ctx (LV n)
+    | n `S.member` zeroArgFuns ctx
+    = parens (cgName n)
+
+    | otherwise
+    = cgName n
+cgExp ctx (LApp _tail_call f args) = cgApp (cgExp ctx f) (map (cgExp ctx) args)
+cgExp ctx (LLazyApp fn args) = cgError $ "lazy app: " ++ show (fn, args)
+cgExp ctx (LLazyExp e) = kwexp "lambda" [parens (text "_force"), cgExp ctx e]
+cgExp ctx (LForce e) = sexp [cgExp ctx e, text "'force"]
+cgExp ctx (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp ctx val)), cgExp ctx rhs]
+cgExp ctx (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp ctx rhs]
+cgExp ctx (LProj e i) = kwexp "list-ref" [cgExp ctx e, int (i+1)]  -- skip the tag
+cgExp ctx (LCon _maybe_cell tag n args)
+    | useCtorTags = kwexp "list" (int tag : map (cgExp ctx) args) <?> show n
+    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp ctx) args) <?> show n
+cgExp ctx (LCase _caseType scrut alts) = cgCase ctx scrut alts
+cgExp ctx (LConst x) = cgConst x
+cgExp ctx (LForeign fdesc ret args) = cgForeign ctx fdesc ret args
+cgExp ctx (LOp op args) = cgPrimOp ctx op args
+cgExp ctx (LNothing) = text "'nothing"
+cgExp ctx (LError msg) = cgError msg
 
 cgError :: String -> Doc
 cgError msg = kwexp "error" [cgStr msg]
@@ -138,27 +148,27 @@ cgError' msg vals = kwexp "error" [cgStr msg, cgList vals]
 cgList :: [Doc] -> Doc
 cgList = kwexp "list"
 
-cgCase :: S.Set Name -> LExp -> [LAlt] -> Doc
-cgCase za scrut alts
+cgCase :: Ctx -> LExp -> [LAlt] -> Doc
+cgCase ctx scrut alts
     | isADT alts
         = kwexp "let*" [
             sexp [
-              sexp [text "_scrut", cgExp za scrut],
+              sexp [text "_scrut", cgExp ctx scrut],
               sexp [text "_tag", kwexp "car" [text "_scrut"]]
             ],
             sexp (
               text "cond"
-              : map (cgAlt za) (clean alts)
+              : map (cgAlt ctx) (clean alts)
             )
         ]
     | otherwise
         = kwexp "let" [
             sexp [
-              sexp [text "_scrut", cgExp za scrut]
+              sexp [text "_scrut", cgExp ctx scrut]
             ],
             sexp (
               text "cond"
-              : map (cgAlt za) (clean alts)
+              : map (cgAlt ctx) (clean alts)
             )
         ]
   where
@@ -182,28 +192,28 @@ unpackAlt args body = kwexp "rts-unpack" [
     body
   ]
 
-cgAlt :: S.Set Name -> LAlt -> Doc
-cgAlt za (LConCase tag n args rhs) 
+cgAlt :: Ctx -> LAlt -> Doc
+cgAlt ctx (LConCase tag n args rhs) 
     | useCtorTags = sexp
         [ kwexp "eq?" [text "_tag", int tag]
-        , unpackAlt args $ cgExp za rhs
+        , unpackAlt args $ cgExp ctx rhs
         ]
     | otherwise = sexp
         [ kwexp "eq?" [text "_tag", text "'" <> cgName n]
-        , unpackAlt args $ cgExp za rhs
+        , unpackAlt args $ cgExp ctx rhs
         ]
-cgAlt za (LConstCase const rhs) = sexp
+cgAlt ctx (LConstCase const rhs) = sexp
     [ kwexp "eq?" [text "_scrut", cgConst const]
-    , cgExp za rhs
+    , cgExp ctx rhs
     ]
-cgAlt za (LDefaultCase rhs) = sexp
+cgAlt ctx (LDefaultCase rhs) = sexp
     [ text "else"
-    , cgExp za rhs
+    , cgExp ctx rhs
     ]
 
-cgForeign :: S.Set Name -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
-cgForeign za _ (FStr fn) args = cFFI fn (map (cgExp za . snd) args)
-cgForeign za fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
+cgForeign :: Ctx -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
+cgForeign ctx _ (FStr fn) args = cFFI fn (map (cgExp ctx . snd) args)
+cgForeign ctx fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
 
 -- C FFI emulation
 cFFI :: String -> [Doc] -> Doc
@@ -239,25 +249,25 @@ cFFI "fileOpen" [fname, mode]
 
 cFFI fn args = cgError' ("unsupported C FFI: " ++ fn) args
 
-boolOp :: S.Set Name -> String -> [LExp] -> Doc
-boolOp za op args = kwexp "if" [kwexp op (map (cgExp za) args), int 1, int 0]
+boolOp :: Ctx -> String -> [LExp] -> Doc
+boolOp ctx op args = kwexp "if" [kwexp op (map (cgExp ctx) args), int 1, int 0]
 
 -- some primops are implemented here for efficiency
-cgPrimOp :: S.Set Name -> PrimFn -> [LExp] -> Doc
-cgPrimOp za (LSExt _ _) [x] = cgExp za x  -- scheme ints are arbitrary precision
-cgPrimOp za (LEq (ATInt ITChar)) args = boolOp za "char=?" args  -- chars can't be compared using (=) in Scheme
-cgPrimOp za (LEq _) args = boolOp za "=" args
-cgPrimOp za (LSLt (ATInt ITChar)) args = boolOp za "char<?" args
-cgPrimOp za (LSLt _) args = boolOp za "<" args
-cgPrimOp za (LSGt (ATInt ITChar)) args = boolOp za "char>?" args
-cgPrimOp za (LSGt _) args = boolOp za ">" args
-cgPrimOp za LStrEq args = boolOp za "string=?" args
-cgPrimOp za LStrLt args = boolOp za "string<?" args
-cgPrimOp za LWriteStr [_, s] = kwexp "display" [cgExp za s]
-cgPrimOp za LStrHead [s] = kwexp "string-ref" [cgExp za s, int 0]
-cgPrimOp za LStrTail [s] = kwexp "substring" [cgExp za s, int 1]
-cgPrimOp za LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp za c], cgExp za s]
-cgPrimOp za op args = sexp (cgOp op : map (cgExp za) args)
+cgPrimOp :: Ctx -> PrimFn -> [LExp] -> Doc
+cgPrimOp ctx (LSExt _ _) [x] = cgExp ctx x  -- scheme ints are arbitrary precision
+cgPrimOp ctx (LEq (ATInt ITChar)) args = boolOp ctx "char=?" args  -- chars can't be compared using (=) in Scheme
+cgPrimOp ctx (LEq _) args = boolOp ctx "=" args
+cgPrimOp ctx (LSLt (ATInt ITChar)) args = boolOp ctx "char<?" args
+cgPrimOp ctx (LSLt _) args = boolOp ctx "<" args
+cgPrimOp ctx (LSGt (ATInt ITChar)) args = boolOp ctx "char>?" args
+cgPrimOp ctx (LSGt _) args = boolOp ctx ">" args
+cgPrimOp ctx LStrEq args = boolOp ctx "string=?" args
+cgPrimOp ctx LStrLt args = boolOp ctx "string<?" args
+cgPrimOp ctx LWriteStr [_, s] = kwexp "display" [cgExp ctx s]
+cgPrimOp ctx LStrHead [s] = kwexp "string-ref" [cgExp ctx s, int 0]
+cgPrimOp ctx LStrTail [s] = kwexp "substring" [cgExp ctx s, int 1]
+cgPrimOp ctx LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp ctx c], cgExp ctx s]
+cgPrimOp ctx op args = sexp (cgOp op : map (cgExp ctx) args)
 
 cgOp :: PrimFn -> Doc
 cgOp (LMinus _) = text "-"
