@@ -21,8 +21,9 @@ module Util.PrettyPrint
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Unsafe as TU
 
-type Line = (Text, Text)  -- text, comment
+type Line = (Int, Text, Text)  -- nesting, text, comment
 newtype Doc = Doc [Line]
 instance Show Doc where
     show = T.unpack . render "(* " " *)"
@@ -35,7 +36,7 @@ int :: Int -> Doc
 int i = text . T.pack $ show i
 
 text :: Text -> Doc
-text s = Doc [(s, "")]
+text s = Doc [(0, s, "")]
 
 comma, colon :: Doc
 comma    = text ","
@@ -63,8 +64,8 @@ Doc xs $+$ Doc ys = Doc $ xs ++ ys
 
 -- | Add a comment to the first line of the Doc.
 (<?>) :: Doc -> Text -> Doc
-Doc [] <?> comment = Doc [("", comment)]
-Doc ((t,c) : lines) <?> comment = Doc $ (t, merge comment c) : lines
+Doc [] <?> comment = Doc [(0, "", comment)]
+Doc ((n, t,c) : lines) <?> comment = Doc $ (n, t, merge comment c) : lines
   where
     merge "" y  = y
     merge x  "" = x
@@ -73,7 +74,7 @@ Doc ((t,c) : lines) <?> comment = Doc $ (t, merge comment c) : lines
 meld :: Text -> [Line] -> [Line] -> [Line]
 meld sep [] ys = ys
 meld sep xs [] = xs
-meld sep [(x,xc)] ((y,yc) : ys) = (T.concat[x, sep, y], merge xc yc) : ys
+meld sep [(n,x,xc)] ((_n',y,yc) : ys) = (n, T.concat[x, sep, y], merge xc yc) : ys
   where
     merge "" y  = y
     merge x  "" = x
@@ -81,10 +82,7 @@ meld sep [(x,xc)] ((y,yc) : ys) = (T.concat[x, sep, y], merge xc yc) : ys
 meld sep (x : xs) ys = x : meld sep xs ys
 
 nest :: Int -> Doc -> Doc
-nest n (Doc xs) = Doc [(indent `T.append` t, c) | (t, c) <- xs]
-  where
-    indent :: Text
-    indent = T.replicate n " "
+nest n' (Doc xs) = Doc [(n+n', t, c) | (n, t, c) <- xs]
 
 parens :: Doc -> Doc
 parens d = lparen <> d <> rparen
@@ -95,11 +93,11 @@ brackets d = lbracket <> d <> rbracket
 render :: Text -> Text -> Doc -> Text
 render cmtL cmtR (Doc xs) = T.unlines $ map (renderLine cmtL cmtR) xs
 
-renderLine :: Text -> Text -> (Text, Text) -> Text
-renderLine cmtL cmtR ("", "") = ""
-renderLine cmtL cmtR ("", comment) = T.concat [cmtL, comment, cmtR]
-renderLine cmtL cmtR (content, "") = content
-renderLine cmtL cmtR (content, comment) = T.concat [content, "  ", cmtL, comment, cmtR]
+renderLine :: Text -> Text -> (Int, Text, Text) -> Text
+renderLine cmtL cmtR (n, "", "") = ""
+renderLine cmtL cmtR (n, "", comment) = T.concat [T.replicate n " ", cmtL, comment, cmtR]
+renderLine cmtL cmtR (n, content, "") = T.concat [T.replicate n " ", content]
+renderLine cmtL cmtR (n, content, comment) = T.concat [T.replicate n " ", content, "  ", cmtL, comment, cmtR]
 
 empty :: Doc
 empty = Doc []
@@ -116,7 +114,7 @@ punctuate sep [x] = [x]
 punctuate sep (x : xs) = (x <> sep) : punctuate sep xs
 
 size :: Doc -> Int
-size (Doc xs) = sum [T.length t | (t, c) <- xs]
+size (Doc xs) = sum [TU.lengthWord16 t | (n, t, c) <- xs]
 
 width :: Doc -> Int
-width (Doc xs) = maximum [T.length t | (t, c) <- xs]
+width (Doc xs) = maximum [TU.lengthWord16 t | (n, t, c) <- xs]
