@@ -132,6 +132,9 @@ cgExp za (LError msg) = cgError msg
 cgError :: String -> Doc
 cgError msg = kwexp "error" [cgStr msg]
 
+cgError' :: String -> [Doc] -> Doc
+cgError' msg vals = kwexp "error" [sexp (cgStr msg : vals)]
+
 cgCase :: S.Set Name -> LExp -> [LAlt] -> Doc
 cgCase za scrut alts
     | isADT alts
@@ -214,7 +217,9 @@ cFFI "idris_getArg" [i] = kwexp "list-ref"
     , i
     ]
 
-cFFI fn args = cgError $ "unsupported C FFI: " ++ show (fn, args)
+-- file I/O
+
+cFFI fn args = cgError' ("unsupported C FFI: " ++ fn) args
 
 boolOp :: S.Set Name -> String -> [LExp] -> Doc
 boolOp za op args = kwexp "if" [kwexp op (map (cgExp za) args), int 1, int 0]
