@@ -211,7 +211,7 @@ cFFI "idris_writeRef" [ref, x] = kwexp "set-car!" [ref, x]
 cFFI "idris_numArgs" [] = text "(+ 1 (length (command-line-arguments)))"
 cFFI "idris_getArg" [i] = kwexp "list-ref"
     [ text "(cons \"this-program\" (command-line-arguments))"
-    , sexp [text "-", i, int 1]
+    , i
     ]
 
 cFFI fn args = cgError $ "unsupported C FFI: " ++ show (fn, args)
