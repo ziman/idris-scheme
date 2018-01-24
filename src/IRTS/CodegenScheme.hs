@@ -133,7 +133,7 @@ cgError :: String -> Doc
 cgError msg = kwexp "error" [cgStr msg]
 
 cgError' :: String -> [Doc] -> Doc
-cgError' msg vals = kwexp "error" [sexp (cgStr msg : vals)]
+cgError' msg vals = kwexp "error" [kwexp "list" (cgStr msg : vals)]
 
 cgCase :: S.Set Name -> LExp -> [LAlt] -> Doc
 cgCase za scrut alts
