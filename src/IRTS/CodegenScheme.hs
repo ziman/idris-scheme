@@ -204,11 +204,11 @@ cgAlt ctx (LConCase _tag n args rhs)
         , unpackAlt args $ cgExp ctx rhs
         ]
     | otherwise = sexp
-        [ kwexp "eq?" [text "_tag", text "'" <> cgName n]
+        [ kwexp "equal?" [text "_tag", text "'" <> cgName n]
         , unpackAlt args $ cgExp ctx rhs
         ]
 cgAlt ctx (LConstCase const rhs) = sexp
-    [ kwexp "eq?" [text "_scrut", cgConst const]
+    [ kwexp "equal?" [text "_scrut", cgConst const]
     , cgExp ctx rhs
     ]
 cgAlt ctx (LDefaultCase rhs) = sexp
