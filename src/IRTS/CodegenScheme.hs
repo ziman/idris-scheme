@@ -124,7 +124,7 @@ cgExp za (LCon _maybe_cell tag n args)
     | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp za) args) <?> show n
 cgExp za (LCase _caseType scrut alts) = cgCase za scrut alts
 cgExp za (LConst x) = cgConst x
-cgExp za (LForeign fdesc ret args) = cgError "foreign not supported"
+cgExp za (LForeign fdesc ret args) = cgForeign za fdesc ret args
 cgExp za (LOp op args) = cgPrimOp za op args
 cgExp za (LNothing) = text "'nothing"
 cgExp za (LError msg) = cgError msg
@@ -142,7 +142,7 @@ cgCase za scrut alts
             ],
             sexp (
               text "cond"
-              : map (cgAlt za) alts
+              : map (cgAlt za) (clean alts)
             )
         ]
     | otherwise
@@ -152,7 +152,7 @@ cgCase za scrut alts
             ],
             sexp (
               text "cond"
-              : map (cgAlt za) alts
+              : map (cgAlt za) (clean alts)
             )
         ]
   where
@@ -160,6 +160,12 @@ cgCase za scrut alts
     isADT (LConstCase _ _ : _) = False
     isADT (LDefaultCase _ : alts) = isADT alts
     isADT [] = error "cannot determine ADTness of case tree"
+
+    -- remove everything after DefaultCase
+    -- causes syntax errors in scheme
+    clean (alt@(LConCase _ _ _ _) : alts) = alt : clean alts
+    clean (alt@(LConstCase _ _) : alts) = alt : clean alts
+    clean (alt@(LDefaultCase _) : alts) = [alt]
 
 unpackAlt :: [Name] -> Doc -> Doc
 unpackAlt [] body = body
@@ -187,6 +193,9 @@ cgAlt za (LDefaultCase rhs) = sexp
     [ text "else"
     , cgExp za rhs
     ]
+
+cgForeign :: S.Set Name -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
+cgForeign za fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
 
 boolOp :: S.Set Name -> String -> [LExp] -> Doc
 boolOp za op args = kwexp "if" [kwexp op (map (cgExp za) args), int 1, int 0]
