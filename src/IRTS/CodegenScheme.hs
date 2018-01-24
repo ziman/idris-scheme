@@ -30,11 +30,14 @@ type Expr = Doc
 
 data Ctx = Ctx
     { zeroArgFuns :: S.Set Name
+    , ctorTags :: M.Map Name Int
     }
     deriving Show
 
+-- use numeric ctor tags?
+-- (as opposed to 'Constructor symbols)
 useCtorTags :: Bool
-useCtorTags = False  -- otherwise, use ctor names
+useCtorTags = True
 
 indent :: Doc -> Doc
 indent = nest 2
@@ -87,6 +90,7 @@ codegenScheme ci = writeFile (outputFile ci) (render "; " "" source)
     definitions = vcat $ map (cgFun ctx) [d | (_, d@(LFun _ _ _ _)) <- decls]
     ctx = Ctx
         { zeroArgFuns = S.fromList [n | (n, LFun _ _ [] _) <- decls]
+        , ctorTags = M.fromList [(n, tag) | (n, LConstructor _n tag _arity) <- decls] 
         }
 
 cgFun :: Ctx -> LDecl -> Doc
@@ -193,9 +197,10 @@ unpackAlt args body = kwexp "rts-unpack" [
   ]
 
 cgAlt :: Ctx -> LAlt -> Doc
-cgAlt ctx (LConCase tag n args rhs) 
+cgAlt ctx (LConCase _tag n args rhs) 
     | useCtorTags = sexp
-        [ kwexp "eq?" [text "_tag", int tag]
+        -- _tag is always -1 in LAlt so we need to look it up by name
+        [ kwexp "=" [text "_tag", int (ctorTags ctx M.! n) <?> show n]
         , unpackAlt args $ cgExp ctx rhs
         ]
     | otherwise = sexp
