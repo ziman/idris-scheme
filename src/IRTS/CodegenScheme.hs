@@ -14,7 +14,9 @@ import Data.Maybe
 import Data.Char
 import Data.List
 import Data.Ord
+import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -38,6 +40,9 @@ data Ctx = Ctx
 -- (as opposed to 'Constructor symbols)
 useCtorTags :: Bool
 useCtorTags = True
+
+tshow :: Show a => a -> T.Text
+tshow = T.pack . show
 
 indent :: Doc -> Doc
 indent = nest 2
@@ -68,8 +73,8 @@ blankLine = text ""
 schemeLauncher :: Doc
 schemeLauncher = sexp [cgName $ sNS (sUN "main") ["Main"], text "'World"]
 
-mangle :: Name -> String
-mangle n = "idr_" ++ concatMap mangleChar (showCG n)
+mangle :: Name -> Text
+mangle n = T.pack $ "idr_" ++ concatMap mangleChar (showCG n)
   where
     mangleChar x
         | isAlpha x || isDigit x = [x]
@@ -78,7 +83,7 @@ mangle n = "idr_" ++ concatMap mangleChar (showCG n)
 -- We could generate from:
 -- simpleDecls / defunDecls / liftDecls
 codegenScheme :: CodeGenerator
-codegenScheme ci = writeFile (outputFile ci) (render "; " "" source)
+codegenScheme ci = TIO.writeFile (outputFile ci) (render "; " "" source)
   where
     source =
       schemePreamble
@@ -98,13 +103,13 @@ cgFun :: Ctx -> LDecl -> Doc
 -- we must put zero-arg functions under at least one lambda
 cgFun ctx (LFun opts n [] body) = parens (
         text "define" <+> parens (cgName n)
-        $$ (text "" <?> show n)
+        $$ (text "" <?> tshow n)
         $$ indent (cgExp ctx body)
     ) $$ text ""
 
 cgFun ctx (LFun opts n args body) = parens (
         text "define" <+> cgName n
-        $$ (text "" <?> show n)
+        $$ (text "" <?> tshow n)
         $$ indent (cgLam args $ cgExp ctx body)
     ) $$ text ""
 
@@ -127,26 +132,26 @@ cgExp ctx (LV n)
     | otherwise
     = cgName n
 cgExp ctx (LApp _tail_call f args) = cgApp (cgExp ctx f) (map (cgExp ctx) args)
-cgExp ctx (LLazyApp fn args) = cgError $ "lazy app: " ++ show (fn, args)
+cgExp ctx (LLazyApp fn args) = cgError ("lazy app: " `T.append` tshow (fn, args))
 cgExp ctx (LLazyExp e) = kwexp "lambda" [parens (text "_force"), cgExp ctx e]
 cgExp ctx (LForce e) = sexp [cgExp ctx e, text "'force"]
 cgExp ctx (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp ctx val)), cgExp ctx rhs]
 cgExp ctx (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp ctx rhs]
 cgExp ctx (LProj e i) = kwexp "list-ref" [cgExp ctx e, int (i+1)]  -- skip the tag
 cgExp ctx (LCon _maybe_cell tag n args)
-    | useCtorTags = kwexp "list" (int tag : map (cgExp ctx) args) <?> show n
-    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp ctx) args) <?> show n
+    | useCtorTags = kwexp "list" (int tag : map (cgExp ctx) args) <?> tshow n
+    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp ctx) args) <?> tshow n
 cgExp ctx (LCase _caseType scrut alts) = cgCase ctx scrut alts
 cgExp ctx (LConst x) = cgConst x
 cgExp ctx (LForeign fdesc ret args) = cgForeign ctx fdesc ret args
 cgExp ctx (LOp op args) = cgPrimOp ctx op args
 cgExp ctx (LNothing) = text "'nothing"
-cgExp ctx (LError msg) = cgError msg
+cgExp ctx (LError msg) = cgError $ T.pack msg
 
-cgError :: String -> Doc
+cgError :: Text -> Doc
 cgError msg = kwexp "error" [cgStr msg]
 
-cgError' :: String -> [Doc] -> Doc
+cgError' :: Text -> [Doc] -> Doc
 cgError' msg vals = kwexp "error" [cgStr msg, cgList vals]
 
 cgList :: [Doc] -> Doc
@@ -200,7 +205,7 @@ cgAlt :: Ctx -> LAlt -> Doc
 cgAlt ctx (LConCase _tag n args rhs) 
     | useCtorTags = sexp
         -- _tag is always -1 in LAlt so we need to look it up by name
-        [ kwexp "=" [text "_tag", int (ctorTags ctx M.! n) <?> show n]
+        [ kwexp "=" [text "_tag", int (ctorTags ctx M.! n) <?> tshow n]
         , unpackAlt args $ cgExp ctx rhs
         ]
     | otherwise = sexp
@@ -218,7 +223,7 @@ cgAlt ctx (LDefaultCase rhs) = sexp
 
 cgForeign :: Ctx -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
 cgForeign ctx _ (FStr fn) args = cFFI fn (map (cgExp ctx . snd) args)
-cgForeign ctx fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
+cgForeign ctx fn fty args = cgError ("foreign not implemented: " `T.append` tshow (fn, fty, args))
 
 -- C FFI emulation
 cFFI :: String -> [Doc] -> Doc
@@ -252,9 +257,9 @@ cFFI "fileOpen" [fname, mode]
             ]
         ]
 
-cFFI fn args = cgError' ("unsupported C FFI: " ++ fn) args
+cFFI fn args = cgError' (T.pack $ "unsupported C FFI: " ++ fn) args
 
-boolOp :: Ctx -> String -> [LExp] -> Doc
+boolOp :: Ctx -> Text -> [LExp] -> Doc
 boolOp ctx op args = kwexp "if" [kwexp op (map (cgExp ctx) args), int 1, int 0]
 
 -- some primops are implemented here for efficiency
@@ -292,23 +297,23 @@ cgOp (LExternal n)
     | n == sUN "prim__null" = ext "'null"
   where
     ext n = parens (text "lambda ()" <+> text n)
-cgOp op = cgError $ "unsupported primop: " ++ show op
+cgOp op = cgError ("unsupported primop: " `T.append` tshow op)
 
 cgConst :: Const -> Doc
-cgConst (I i) = text $ show i
-cgConst (BI i) = text $ show i
-cgConst (Fl f) = text $ show f
+cgConst (I i) = text $ tshow i
+cgConst (BI i) = text $ tshow i
+cgConst (Fl f) = text $ tshow f
 cgConst (Ch c) = cgChar c
-cgConst (Str s) = cgStr s
-cgConst c = cgError $ "unimplemented constant: " ++ show c
+cgConst (Str s) = cgStr $ T.pack s
+cgConst c = cgError ("unimplemented constant: " `T.append` tshow c)
 
-cgStr :: String -> Doc
-cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
+cgStr :: Text -> Doc
+cgStr s = text "\"" <> text (T.pack $ concatMap (scmShowChr True) (T.unpack s)) <> text "\""
 
 cgChar :: Char -> Doc
 cgChar c
-    | c >= ' ' && c < '\x7F' = text ("#\\" ++ [c])
-    | otherwise = text ("#\\u" ++ showHexN 4 (ord c))
+    | c >= ' ' && c < '\x7F' = text (T.pack $ "#\\" ++ [c])
+    | otherwise = text (T.pack $ "#\\u" ++ showHexN 4 (ord c))
 
 -- bool flag = True: we are between double quotes
 -- bool flag = False: we are between single quotes
@@ -330,8 +335,8 @@ showHexN w n =
 -- Let's not mangle /that/ much. Especially function parameters
 -- like e0 and e1 are nicer when readable.
 cgName :: Name -> Expr
-cgName (MN i n) | all (\x -> isAlpha x || x `elem` "_") (T.unpack n)
-    = text $ T.unpack n ++ show i
+cgName (MN i n) | all (\x -> isAlpha x || x `elem` ['_']) (T.unpack n)
+    = text $ T.concat [n, tshow i]
 cgName n = text (mangle n)
 
 cgBigLet :: [(Name, Doc)] -> Doc -> Doc
@@ -357,6 +362,6 @@ sexp xxs@(x:xs)
     shortLayout = parens $ hsep xxs
     longLayout  = parens (x $$ indent (vcat xs))
 
-kwexp :: String -> [Doc] -> Doc
+kwexp :: Text -> [Doc] -> Doc
 kwexp n (x : xs) = sexp (text n <+> x : xs)
 kwexp n []       = parens (text n)
