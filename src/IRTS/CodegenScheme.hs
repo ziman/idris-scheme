@@ -224,11 +224,11 @@ cFFI "idris_getArg" [i] = kwexp "list-ref"
 cFFI "fileOpen" [fname, mode]
     = kwexp "cond"
         [ sexp
-            [ kwexp "eq?" [mode, cgStr "r"]
+            [ kwexp "string=?" [mode, cgStr "r"]
             , kwexp "open-input-file" [fname]
             ]
         , sexp
-            [ kwexp "eq?" [mode, cgStr "w"]
+            [ kwexp "string=?" [mode, cgStr "w"]
             , kwexp "open-output-file" [fname]
             ]
         , sexp
