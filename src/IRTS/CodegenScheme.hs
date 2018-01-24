@@ -308,7 +308,7 @@ cgStr s = text "\"" <> text (concatMap (scmShowChr True) s) <> text "\""
 cgChar :: Char -> Doc
 cgChar c
     | c >= ' ' && c < '\x7F' = text ("#\\" ++ [c])
-    | otherwise = text ("#\\x" ++ showHex (ord c) "")
+    | otherwise = text ("#\\u" ++ showHexN 4 (ord c))
 
 -- bool flag = True: we are between double quotes
 -- bool flag = False: we are between single quotes
