@@ -196,17 +196,16 @@ cgAlt za (LDefaultCase rhs) = sexp
     ]
 
 cgForeign :: S.Set Name -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
-
-cgForeign za _ (FStr "idris_newRef") [(_, x)]
-    = kwexp "list" [cgExp za x]
-
-cgForeign za _ (FStr "idris_readRef") [(_, ref)]
-    = kwexp "car" [cgExp za ref]
-
-cgForeign za _ (FStr "idris_writeRef") [(_, ref), (_, x)]
-    = kwexp "set-car!" [cgExp za ref, cgExp za x]
-
+cgForeign za _ (FStr fn) args = cFFI fn (map (cgExp za . snd) args)
 cgForeign za fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
+
+cFFI :: String -> [Doc] -> Doc
+cFFI "idris_newRef" [x] = kwexp "list" [x]
+cFFI "idris_readRef" [ref] = kwexp "car" [ref]
+cFFI "idris_writeRef" [ref, x] = kwexp "set-car!" [ref, x]
+cFFI "idris_numArgs" [] = text "(length (command-line-arguments))"
+cFFI "idris_getArg" [i] = kwexp "list-ref" [text "(command-line-arguments)", i]
+cFFI fn args = cgError $ "unsupported C FFI: " ++ show (fn, args)
 
 boolOp :: S.Set Name -> String -> [LExp] -> Doc
 boolOp za op args = kwexp "if" [kwexp op (map (cgExp za) args), int 1, int 0]
