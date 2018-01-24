@@ -199,12 +199,21 @@ cgForeign :: S.Set Name -> FDesc -> FDesc -> [(FDesc, LExp)] -> Doc
 cgForeign za _ (FStr fn) args = cFFI fn (map (cgExp za . snd) args)
 cgForeign za fn fty args = cgError $ "foreign not implemented: " ++ show (fn, fty, args)
 
+-- C FFI emulation
 cFFI :: String -> [Doc] -> Doc
+
+-- IORefs are represented as single-element lists
 cFFI "idris_newRef" [x] = kwexp "list" [x]
 cFFI "idris_readRef" [ref] = kwexp "car" [ref]
 cFFI "idris_writeRef" [ref, x] = kwexp "set-car!" [ref, x]
-cFFI "idris_numArgs" [] = text "(length (command-line-arguments))"
-cFFI "idris_getArg" [i] = kwexp "list-ref" [text "(command-line-arguments)", i]
+
+-- scheme does not include argv[0] so we hack around that
+cFFI "idris_numArgs" [] = text "(+ 1 (length (command-line-arguments)))"
+cFFI "idris_getArg" [i] = kwexp "list-ref"
+    [ text "(cons \"this-program\" (command-line-arguments))"
+    , sexp [text "-", i, int 1]
+    ]
+
 cFFI fn args = cgError $ "unsupported C FFI: " ++ show (fn, args)
 
 boolOp :: S.Set Name -> String -> [LExp] -> Doc
