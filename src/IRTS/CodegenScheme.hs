@@ -166,6 +166,7 @@ cgCase za scrut alts
     clean (alt@(LConCase _ _ _ _) : alts) = alt : clean alts
     clean (alt@(LConstCase _ _) : alts) = alt : clean alts
     clean (alt@(LDefaultCase _) : alts) = [alt]
+    clean [] = []
 
 unpackAlt :: [Name] -> Doc -> Doc
 unpackAlt [] body = body
