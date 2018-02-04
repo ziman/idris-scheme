@@ -236,8 +236,6 @@ cFFI "fileOpen" [fname, mode]
             , cgError' "unsupported open mode" [fname, mode]
             ]
         ]
-cFFI "isNull" [f] = int 0  -- hack hack hack
-cFFI "fileSize" [f] = 
 cFFI fn args = cgError' (T.pack $ "unsupported C FFI: " ++ fn) args
 
 boolOp :: Ctx -> Text -> [LExp] -> Doc
