@@ -246,8 +246,10 @@ cgOp (LExternal n)
     | n == sUN "prim__sizeofPtr" = ext "1"
     | n == sUN "prim__null" = ext "'null"
     | n == sUN "prim__readChars" = text "cffi-readChars"
+    | n == sUN "prim__vm" = extW "'vm"
   where
     ext n = parens (text "lambda ()" <+> text n)
+    extW n = parens (text "lambda (_world)" <+> text n)
 cgOp op = cgError ("unsupported primop: " `T.append` tshow op)
 
 cgConst :: Const -> Doc
