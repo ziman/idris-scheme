@@ -18,15 +18,19 @@
 
 (require "posix")
 
+(define box-new list)
+(define box-get car)
+(define box-set! set-car!)
+
 ; IORefs are represented as singleton lists
 (define (cffi-idris_newRef x)
-  (list x))
+  (box-new x))
 
 (define (cffi-idris_readRef ref)
-  (car ref))
+  (box-get ref))
 
 (define (cffi-idris_writeRef ref x)
-  (set-car! ref x))
+  (box-set ref x))
 
 
 ; Chicken Scheme's args don't include argv[0]
@@ -43,27 +47,27 @@
 (define (cffi-fileOpen fname mode)
   (cond
     ((string=? mode "r")
-     (list (open-input-file fname)))
+     (box-new (open-input-file fname)))
     ((string=? mode "w")
-     (list (open-output-file fname)))
+     (box-new (open-output-file fname)))
     (else
       (error "unsupported open mode: " mode))))
 
 (define (cffi-isNull f)
-  (if (eq? (car f) 'null) 1 0))  ; hackity-hack: if the file does not exist, it'll have crashed on fopen() already
+  (if (eq? (box-get f) 'null) 1 0))  ; hackity-hack: if the file does not exist, it'll have crashed on fopen() already
 
 (define (cffi-fileSize f)
-  (file-size (car f)))
+  (file-size (box-get f)))
 
 (define (cffi-fileEOF f)
-  (if (eq? (car f) 'eof) 1 0))
+  (if (eq? (box-get f) 'eof) 1 0))
 
 (define (cffi-readChars _world count f)
   (define (chars n)
     (if (= n 0) '()
-      (let ((char (read-char (car f))))
+      (let ((char (read-char (box-get f))))
         (if (eof-object? char)
-          (begin (set-car! f 'eof) '())
+          (begin (box-set! f 'eof) '())
           (cons char (chars (- n 1)))))))
   (list->string (chars count)))
 
@@ -71,4 +75,7 @@
   0) ; hackity-hack
 
 (define (cffi-idris_makeStringBuffer len)
-  "")  ; hackity-hack
+  (box-new ""))  ; hackity-hack
+
+(define (cffi-idris_addToString buf str)
+  (box-set buf (string-append (box-get buf) str)))
