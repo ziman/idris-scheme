@@ -30,7 +30,7 @@
   (box-get ref))
 
 (define (cffi-idris_writeRef ref x)
-  (box-set ref x))
+  (box-set! ref x))
 
 
 ; Chicken Scheme's args don't include argv[0]
@@ -78,4 +78,4 @@
   (box-new ""))  ; hackity-hack
 
 (define (cffi-idris_addToString buf str)
-  (box-set buf (string-append (box-get buf) str)))
+  (box-set! buf (string-append (box-get buf) str)))
