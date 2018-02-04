@@ -214,28 +214,13 @@ cFFI "idris_readRef" [ref] = kwexp "car" [ref]
 cFFI "idris_writeRef" [ref, x] = kwexp "set-car!" [ref, x]
 
 -- scheme does not include argv[0] so we hack around that
-cFFI "idris_numArgs" [] = text "(+ 1 (length (command-line-arguments)))"
-cFFI "idris_getArg" [i] = kwexp "list-ref"
-    [ text "(cons \"this-program\" (command-line-arguments))"
-    , i
-    ]
+cFFI "idris_numArgs" [] = kwexp "rts-num-args" []
+cFFI "idris_getArg" [i] = kwexp "rts-get-arg" [i]
 
 -- file I/O
-cFFI "fileOpen" [fname, mode]
-    = kwexp "cond"
-        [ sexp
-            [ kwexp "string=?" [mode, cgStr "r"]
-            , kwexp "open-input-file" [fname]
-            ]
-        , sexp
-            [ kwexp "string=?" [mode, cgStr "w"]
-            , kwexp "open-output-file" [fname]
-            ]
-        , sexp
-            [ text "else"
-            , cgError' "unsupported open mode" [fname, mode]
-            ]
-        ]
+cFFI "fileOpen" [fname, mode] = kwexp "rts-file-open" [fname, mode]
+
+-- everything else
 cFFI fn args = cgError' (T.pack $ "unsupported C FFI: " ++ fn) args
 
 boolOp :: Ctx -> Text -> [LExp] -> Doc
