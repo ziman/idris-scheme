@@ -39,7 +39,7 @@ Executable idris-codegen-scheme
      cpp-options:   -DWINDOWS
      build-depends: Win32 < 2.4
 
-  ghc-prof-options: -auto-all -caf-all
+  ghc-prof-options: -fprof-auto
   ghc-options:      -threaded -rtsopts -funbox-strict-fields
   extensions:       OverloadedStrings
 
