@@ -48,7 +48,19 @@
       (error "unsupported open mode: " mode))))
 
 (define (cffi-isNull f)
-  0)  ; hackity-hack: if the file does not exist, it'll crash on open
+  0)  ; hackity-hack: if the file does not exist, it'll have crashed on fopen() already
 
 (define (cffi-fileSize f)
   (file-size f))
+
+(define (cffi-fileEOF f)
+  (if (eof-object? f) 1 0))
+
+(define (cffi-readChars _world count f)
+  (define (chars n)
+    (if (= n 0) '()
+      (cons (read-char f) (chars (- n 1)))))
+  (list->string (chars count)))
+
+(define (cffi-idris_makeStringBuffer len)
+  "")  ; hackity-hack
