@@ -18,15 +18,27 @@
 
 (require "posix")
 
-(define (rts-num-args)
+; IORefs are represented as singleton lists
+(define (cffi-idris_newRef x)
+  (list x))
+
+(define (cffi-idris_readRef ref)
+  (car ref))
+
+(define (cffi-idris_writeRef ref x)
+  (set-car! ref x))
+
+
+; Chicken Scheme's args don't include argv[0]
+(define (cffi-idris_numArgs)
   (+ 1 (length (command-line-arguments))))
 
-(define (rts-get-arg i)
+(define (cffi-idris_getArg i)
   (list-ref
     (cons "this-program" (command-line-arguments))
     i))
 
-(define (rts-file-open fname mode)
+(define (cffi-fileOpen fname mode)
   (cond
     ((string=? mode "r")
      (open-input-file fname))
@@ -34,3 +46,9 @@
      (open-output-file fname))
     (else
       (error "unsupported open mode: " mode))))
+
+(define (cffi-isNull f)
+  0)  ; hackity-hack: if the file does not exist, it'll crash on open
+
+(define (cffi-fileSize f)
+  (file-size f))

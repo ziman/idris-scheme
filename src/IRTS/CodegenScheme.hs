@@ -207,21 +207,7 @@ cgForeign ctx fn fty args = cgError ("foreign not implemented: " `T.append` tsho
 
 -- C FFI emulation
 cFFI :: String -> [Doc] -> Doc
-
--- IORefs are represented as single-element lists
-cFFI "idris_newRef" [x] = kwexp "list" [x]
-cFFI "idris_readRef" [ref] = kwexp "car" [ref]
-cFFI "idris_writeRef" [ref, x] = kwexp "set-car!" [ref, x]
-
--- scheme does not include argv[0] so we hack around that
-cFFI "idris_numArgs" [] = kwexp "rts-num-args" []
-cFFI "idris_getArg" [i] = kwexp "rts-get-arg" [i]
-
--- file I/O
-cFFI "fileOpen" [fname, mode] = kwexp "rts-file-open" [fname, mode]
-
--- everything else
-cFFI fn args = cgError' (T.pack $ "unsupported C FFI: " ++ fn) args
+cFFI fname = kwexp (T.pack $ "cffi-" ++ fname)
 
 boolOp :: Ctx -> Text -> [LExp] -> Doc
 boolOp ctx op args = kwexp "if" [kwexp op (map (cgExp ctx) args), int 1, int 0]
