@@ -21,7 +21,7 @@ Executable idris-codegen-scheme
                 , transformers
                 , text
 
-  other-modules: IRTS.CodegenScheme, Util.PrettyPrint
+  other-modules: IRTS.CodegenScheme, Util.PrettyPrint, Paths_idris_scheme
 
   if os(linux)
      cpp-options:   -DLINUX
@@ -41,6 +41,6 @@ Executable idris-codegen-scheme
 
   ghc-prof-options: -fprof-auto
   ghc-options:      -threaded -rtsopts -funbox-strict-fields
-  extensions:       OverloadedStrings
+  extensions:       OverloadedStrings LambdaCase
 
 

@@ -43,7 +43,8 @@ cgMain opts = do
     runIO $ codegenScheme codegenInfo
 
 main :: IO ()
-main =
-    getOpts >>= \case inputs opts of
+main = do
+    opts <- getOpts
+    case inputs opts of
         [] -> showUsage
         _  -> runMain (cgMain opts)
