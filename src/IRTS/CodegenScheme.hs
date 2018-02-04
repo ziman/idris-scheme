@@ -245,7 +245,7 @@ cgOp (LExternal n)
     | n == sUN "prim__stderr" = ext "'stderr"
     | n == sUN "prim__sizeofPtr" = ext "1"
     | n == sUN "prim__null" = ext "'null"
-    | n == sUN "prim__readChars" = ext "cffi-readChars"
+    | n == sUN "prim__readChars" = text "cffi-readChars"
   where
     ext n = parens (text "lambda ()" <+> text n)
 cgOp op = cgError ("unsupported primop: " `T.append` tshow op)
