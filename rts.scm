@@ -59,7 +59,9 @@
 (define (cffi-readChars _world count f)
   (define (chars n)
     (if (= n 0) '()
-      (cons (read-char f) (chars (- n 1)))))
+      (let ((char (read-char f)))
+        (if (eof-object? char) '()
+          (cons char (chars (- n 1)))))))
   (list->string (chars count)))
 
 (define (cffi-idris_makeStringBuffer len)
