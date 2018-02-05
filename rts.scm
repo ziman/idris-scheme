@@ -18,6 +18,19 @@
 
 (require "posix")
 
+(define-syntax lazy-new
+  (syntax-rules ()
+    ((lazy-new code) (list 'thunk (lambda () code)))))
+
+(define (lazy-force x)
+  (if (eq? (car x) 'thunk)
+   (let ((value ((cadr x))))
+     (begin
+       (set-car! x value)
+       (set-cdr! x '())
+       value))
+   (car x)))
+
 (define box-new list)
 (define box-get car)
 (define box-get-extra cadr)

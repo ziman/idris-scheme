@@ -113,8 +113,8 @@ cgExp ctx (LV n)
     = cgName n
 cgExp ctx (LApp _tail_call f args) = cgApp (cgExp ctx f) (map (cgExp ctx) args)
 cgExp ctx (LLazyApp fn args) = cgError ("lazy app: " `T.append` tshow (fn, args))
-cgExp ctx (LLazyExp e) = kwexp "lambda" [parens (text "_force"), cgExp ctx e]
-cgExp ctx (LForce e) = sexp [cgExp ctx e, text "'force"]
+cgExp ctx (LLazyExp e) = kwexp "lazy-new" [cgExp ctx e]
+cgExp ctx (LForce e) = kwexp "lazy-force" [cgExp ctx e]
 cgExp ctx (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp ctx val)), cgExp ctx rhs]
 cgExp ctx (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp ctx rhs]
 cgExp ctx (LProj e i) = kwexp "list-ref" [cgExp ctx e, int (i+1)]  -- skip the tag
