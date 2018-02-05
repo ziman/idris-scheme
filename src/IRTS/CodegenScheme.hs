@@ -214,6 +214,8 @@ boolOp ctx op args = kwexp "if" [kwexp op (map (cgExp ctx) args), int 1, int 0]
 
 -- some primops are implemented here for efficiency
 cgPrimOp :: Ctx -> PrimFn -> [LExp] -> Doc
+cgPrimOp ctx (LTrunc _ _) [x] = cgExp ctx x
+cgPrimOp ctx (LZExt _ _) [x] = cgExp ctx x
 cgPrimOp ctx (LSExt _ _) [x] = cgExp ctx x  -- scheme ints are arbitrary precision
 cgPrimOp ctx (LEq (ATInt ITChar)) args = boolOp ctx "char=?" args  -- chars can't be compared using (=) in Scheme
 cgPrimOp ctx (LEq _) args = boolOp ctx "=" args
@@ -227,6 +229,7 @@ cgPrimOp ctx LWriteStr [_, s] = kwexp "display" [cgExp ctx s]
 cgPrimOp ctx LStrHead [s] = kwexp "string-ref" [cgExp ctx s, int 0]
 cgPrimOp ctx LStrTail [s] = kwexp "substring" [cgExp ctx s, int 1]
 cgPrimOp ctx LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp ctx c], cgExp ctx s]
+cgPrimOp ctx LStrRev [s] = kwexp "list->string" [kwexp "reverse" [kwexp "string->list" [cgExp ctx s]]]
 cgPrimOp ctx op args = sexp (cgOp op : map (cgExp ctx) args)
 
 cgOp :: PrimFn -> Doc
@@ -235,6 +238,7 @@ cgOp (LPlus _) = text "+"
 cgOp (LTimes _) = text "*"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
+cgOp LStrLen = text "string-length"
 cgOp (LIntStr _) = text "number->string"
 cgOp (LStrInt _) = text "string->number"
 cgOp (LChInt _) = text "char->integer"
@@ -247,10 +251,11 @@ cgOp (LExternal n)
     | n == sUN "prim__null" = ext "'null"
     | n == sUN "prim__readChars" = text "cffi-readChars"
     | n == sUN "prim__vm" = extW "'vm"
+    | otherwise = text (T.pack $ "idris-extern-" ++ show n)
   where
     ext n = parens (text "lambda ()" <+> text n)
     extW n = parens (text "lambda (_world)" <+> text n)
-cgOp op = cgError ("unsupported primop: " `T.append` tshow op)
+cgOp op = text (T.pack $ "idris-op-" ++ show op)
 
 cgConst :: Const -> Doc
 cgConst (I i) = text $ tshow i
