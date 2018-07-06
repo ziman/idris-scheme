@@ -51,7 +51,7 @@ blankLine :: Doc
 blankLine = text ""
 
 schemeLauncher :: Doc
-schemeLauncher = sexp [cgName $ sNS (sUN "main") ["Main"], text "'World"]
+schemeLauncher = sexp [sexp [cgName $ sNS (sUN "main") ["Main"]], text "'World"]
 
 mangle :: Name -> Text
 mangle n = T.pack $ "idr_" ++ concatMap mangleChar (showCG n)
