@@ -48,13 +48,14 @@
 (define field-file-object 0)
 (define field-file-state 1)
 (define field-file-orientation 2)
+(define field-file-name 3)
 
 (define (cffi-fileOpen fname mode)
   (cond
     ((string=? mode "r")
-     (vector (open-input-file fname) 'ok 'input))
+     (vector (open-input-file fname) 'ok 'input fname))
     ((string=? mode "w")
-     (vector (open-output-file fname) 'ok 'output))
+     (vector (open-output-file fname) 'ok 'output fname))
     (else
       (error "unsupported open mode: " mode))))
 
@@ -62,7 +63,7 @@
   (if (eq? ptr 'null) 1 0))
 
 (define (cffi-fileSize f)
-  (file-size (vector-ref f field-file-object)))
+  (file-size (vector-ref f field-file-name)))
 
 (define (cffi-fileEOF f)
   (if (eq? (vector-ref f field-file-state) 'eof) 1 0))
@@ -91,13 +92,13 @@
       (error "fclose: unknown file type: " (vector-ref f field-file-orientation)))))
 
 (define (cffi-idris_makeStringBuffer len)
-  (box-new ""))  ; hackity-hack
+  (box ""))  ; hackity-hack
 
 (define (cffi-idris_addToString buf str)
-  (box-set! buf (string-append (box-get buf) str)))
+  (set-box! buf (string-append (box-get buf) str)))
 
 (define (cffi-idris_getString _vm buf)
-  (box-get buf))
+  (unbox buf))
 
 ; a buffer is a vector of numbers in [0,255]
 ; resize returns a new buffer so we needn't box it
