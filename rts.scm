@@ -35,9 +35,11 @@
   (+ 1 (vector-length (current-command-line-arguments))))
 
 (define (cffi-idris_getArg i)
-  (vector-ref
-    (current-command-line-arguments)
-    (- i 1)))
+  (if (= i 0)
+      "this-program"
+      (vector-ref
+        (current-command-line-arguments)
+        (- i 1))))
 
 ; Files are mutable cells
 (define field-file-object 0)

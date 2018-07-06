@@ -1,3 +1,4 @@
+{-# LANGUAGE Strict #-}
 module IRTS.CodegenScheme (codegenScheme) where
 
 import IRTS.CodegenCommon
