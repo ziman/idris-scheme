@@ -22,6 +22,9 @@
 (define (vector-cdr x)
   (vector-drop x 1))
 
+(define (idris-op-LSystemInfo idx)
+  (vector-ref #("c" "os" "target-triple") idx))
+
 (define (cffi-idris_newRef x)
   (box x))
 
