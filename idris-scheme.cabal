@@ -16,7 +16,7 @@ Executable idris-codegen-scheme
                 , containers
                 , directory
                 , filepath
-                , haskeline >= 0.7
+                , haskeline
                 , mtl
                 , transformers
                 , text

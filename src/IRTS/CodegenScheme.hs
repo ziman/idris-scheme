@@ -113,14 +113,14 @@ cgExp ctx (LV n)
     = cgName n
 cgExp ctx (LApp _tail_call f args) = cgApp (cgExp ctx f) (map (cgExp ctx) args)
 cgExp ctx (LLazyApp fn args) = cgError ("lazy app: " `T.append` tshow (fn, args))
-cgExp ctx (LLazyExp e) = kwexp "lazy-new" [cgExp ctx e]
-cgExp ctx (LForce e) = kwexp "lazy-force" [cgExp ctx e]
+cgExp ctx (LLazyExp e) = kwexp "delay" [cgExp ctx e]
+cgExp ctx (LForce e) = kwexp "force" [cgExp ctx e]
 cgExp ctx (LLet n val rhs) = kwexp "let" [parens (parens (cgName n <+> cgExp ctx val)), cgExp ctx rhs]
 cgExp ctx (LLam args rhs) = kwexp "lambda" [parens (hsep $ map cgName args), cgExp ctx rhs]
-cgExp ctx (LProj e i) = kwexp "list-ref" [cgExp ctx e, int (i+1)]  -- skip the tag
+cgExp ctx (LProj e i) = kwexp "vector-ref" [cgExp ctx e, int (i+1)]  -- skip the tag
 cgExp ctx (LCon _maybe_cell tag n args)
-    | useCtorTags = kwexp "list" (int tag : map (cgExp ctx) args) <?> tshow n
-    | otherwise   = kwexp "list" ((text "'" <> cgName n) : map (cgExp ctx) args) <?> tshow n
+    | useCtorTags = kwexp "vector" (int tag : map (cgExp ctx) args) <?> tshow n
+    | otherwise   = kwexp "vector" ((text "'" <> cgName n) : map (cgExp ctx) args) <?> tshow n
 cgExp ctx (LCase _caseType scrut alts) = cgCase ctx scrut alts
 cgExp ctx (LConst x) = cgConst x
 cgExp ctx (LForeign fdesc ret args) = cgForeign ctx fdesc ret args
@@ -135,7 +135,7 @@ cgError' :: Text -> [Doc] -> Doc
 cgError' msg vals = kwexp "error" [cgStr msg, cgList vals]
 
 cgList :: [Doc] -> Doc
-cgList = kwexp "list"
+cgList = kwexp "vector"
 
 cgCase :: Ctx -> LExp -> [LAlt] -> Doc
 cgCase ctx scrut alts
@@ -143,7 +143,7 @@ cgCase ctx scrut alts
         = kwexp "let*" [
             sexp [
               sexp [text "_scrut", cgExp ctx scrut],
-              sexp [text "_tag", kwexp "car" [text "_scrut"]]
+              sexp [text "_tag", kwexp "vector-car" [text "_scrut"]]
             ],
             sexp (
               text "cond"
@@ -174,12 +174,16 @@ cgCase ctx scrut alts
     clean [] = []
 
 unpackAlt :: [Name] -> Doc -> Doc
-unpackAlt [] body = body
-unpackAlt args body = kwexp "rts-unpack" [
-    text "(cdr _scrut)",
-    sexp (map cgName args),
-    body
-  ]
+unpackAlt  []  body = body
+unpackAlt args body = kwexp "match-let"
+    [ sexp
+        [ sexp
+            [ kwexp "vector" (text "_" : map cgName args)
+            , text "_scrut"
+            ]
+        ]
+    , body
+    ]
 
 cgAlt :: Ctx -> LAlt -> Doc
 cgAlt ctx (LConCase _tag n args rhs) 
