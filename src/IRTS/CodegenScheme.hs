@@ -243,6 +243,7 @@ cgPrimOp ctx LStrSubstr [ofs, len, str] = kwexp "substring"
 cgPrimOp ctx op args = sexp (cgOp op : map (cgExp ctx) args)
 
 cgOp :: PrimFn -> Doc
+cgOp LCrash = text "error"
 cgOp (LMinus _) = text "-"
 cgOp (LPlus _) = text "+"
 cgOp (LTimes _) = text "*"
