@@ -40,7 +40,7 @@ data Ctx = Ctx
 -- use numeric ctor tags?
 -- (as opposed to 'Constructor symbols)
 useCtorTags :: Bool
-useCtorTags = True
+useCtorTags = False -- True  -- necessary for idris_mkFileError in RTS
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
@@ -235,12 +235,18 @@ cgPrimOp ctx LStrHead [s] = kwexp "string-ref" [cgExp ctx s, int 0]
 cgPrimOp ctx LStrTail [s] = kwexp "substring" [cgExp ctx s, int 1]
 cgPrimOp ctx LStrCons [c, s] = kwexp "string-append" [kwexp "string" [cgExp ctx c], cgExp ctx s]
 cgPrimOp ctx LStrRev [s] = kwexp "list->string" [kwexp "reverse" [kwexp "string->list" [cgExp ctx s]]]
+cgPrimOp ctx LStrSubstr [ofs, len, str] = kwexp "substring"
+    [ cgExp ctx str
+    , cgExp ctx ofs
+    , kwexp "+" [cgExp ctx str, cgExp ctx ofs]
+    ]
 cgPrimOp ctx op args = sexp (cgOp op : map (cgExp ctx) args)
 
 cgOp :: PrimFn -> Doc
 cgOp (LMinus _) = text "-"
 cgOp (LPlus _) = text "+"
 cgOp (LTimes _) = text "*"
+cgOp (LSDiv _) = text "quotient"
 cgOp LStrConcat = text "string-append"
 cgOp LStrCons = text "string-append"
 cgOp LStrLen = text "string-length"

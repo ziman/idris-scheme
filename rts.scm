@@ -1,3 +1,5 @@
+#lang racket
+
 ; (rts-unpack list-with-values names-to-bind)
 (define-syntax rts-unpack
   (syntax-rules ()
@@ -51,13 +53,16 @@
 (define field-file-name 3)
 
 (define (cffi-fileOpen fname mode)
-  (cond
-    ((string=? mode "r")
-     (vector (open-input-file fname) 'ok 'input fname))
-    ((string=? mode "w")
-     (vector (open-output-file fname) 'ok 'output fname))
-    (else
-      (error "unsupported open mode: " mode))))
+  (with-handlers
+    ([exn:fail:filesystem:errno?
+       (lambda (e) 'null)])
+   (cond
+      ((string=? mode "r")
+       (vector (open-input-file fname) 'ok 'input fname))
+      ((string=? mode "w")
+       (vector (open-output-file fname) 'ok 'output fname))
+      (else
+        (error "unsupported open mode: " mode)))))
 
 (define (cffi-isNull ptr)
   (if (eq? ptr 'null) 1 0))
@@ -77,6 +82,9 @@
           (cons char (chars (- n 1)))))))
   (list->string (chars count)))
 
+(define (cffi-idris_mkFileError _vm)
+  #('FileNotFound))
+
 (define (cffi-fileError f)
   (if (eq? (vector-ref f field-file-state) 'ok)
     0
@@ -95,7 +103,7 @@
   (box ""))  ; hackity-hack
 
 (define (cffi-idris_addToString buf str)
-  (set-box! buf (string-append (box-get buf) str)))
+  (set-box! buf (string-append (unbox buf) str)))
 
 (define (cffi-idris_getString _vm buf)
   (unbox buf))
